@@ -11,3 +11,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local browser binary for Plotly/Kaleido PNG rendering
+.plotly_chrome/
