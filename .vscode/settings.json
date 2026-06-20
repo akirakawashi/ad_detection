@@ -1,0 +1,18 @@
+{
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/ml/data/**": true,
+    "**/ml/runs/**": true,
+    "**/models/**": true,
+    "**/outputs/**": true
+  },
+  "search.exclude": {
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/ml/data/**": true,
+    "**/ml/runs/**": true,
+    "**/models/**": true,
+    "**/outputs/**": true
+  }
+}
