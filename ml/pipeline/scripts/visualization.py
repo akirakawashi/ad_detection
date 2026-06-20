@@ -21,7 +21,7 @@ COLORS = {
 
 def write_annotated_media(
     output_dir: Path,
-    frames: list[FrameRecord],
+    frames: list[FrameRecord] | None,
     detections: list[DetectionRecord],
     tracks: list[TrackRecord],
     metadata: InputMetadata,
@@ -36,6 +36,20 @@ def write_annotated_media(
     for detection in detections:
         detections_by_frame.setdefault(detection.frame_index, []).append(detection)
     tracks_by_id = {track.track_id: track for track in tracks}
+
+    if metadata.input_type == "video" and frames is None:
+        write_annotated_video_from_source(
+            output_dir,
+            detections_by_frame,
+            tracks_by_id,
+            metadata,
+            config,
+            annotated_dir,
+        )
+        return
+
+    if frames is None:
+        return
 
     writer = create_annotated_video_writer(output_dir / "video" / "annotated_video.mp4", frames, metadata)
     try:
@@ -55,6 +69,60 @@ def write_annotated_media(
     finally:
         if writer is not None:
             writer.release()
+
+
+def write_annotated_video_from_source(
+    output_dir: Path,
+    detections_by_frame: dict[int, list[DetectionRecord]],
+    tracks_by_id: dict[int, TrackRecord],
+    metadata: InputMetadata,
+    config: PipelineConfig,
+    annotated_dir: Path | None,
+) -> None:
+    cap = cv2.VideoCapture(str(metadata.source_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {metadata.source_path}")
+
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0) or metadata.fps or 25.0
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or metadata.width)
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or metadata.height)
+
+    output_video = output_dir / "video" / "annotated_video.mp4"
+    output_video.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(
+        str(output_video),
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        fps,
+        (width, height),
+    )
+    if not writer.isOpened():
+        cap.release()
+        raise RuntimeError(f"Could not create annotated video: {output_video}")
+
+    frame_index = 0
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            annotated = frame.copy()
+            frame_detections = detections_by_frame.get(frame_index, [])
+            for detection in frame_detections:
+                track = tracks_by_id.get(detection.track_id or -1)
+                if not config.draw_rejected and track and track.final_status == "not_classified":
+                    continue
+                draw_detection(annotated, detection, track)
+
+            if annotated_dir is not None and frame_detections:
+                frame_path = annotated_dir / f"frame_{frame_index:06d}.jpg"
+                cv2.imwrite(str(frame_path), annotated)
+
+            writer.write(annotated)
+            frame_index += 1
+    finally:
+        cap.release()
+        writer.release()
 
 
 def draw_detection(

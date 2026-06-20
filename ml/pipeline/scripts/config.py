@@ -41,7 +41,7 @@ class PipelineConfig:
 
     brand_conf_accept: float = 0.80
     other_conf_accept: float = 0.85
-    manual_review_min: float = 0.50
+    manual_review_min: float = 0.40
     brand_conflict_margin: float = 0.10
 
     tracking_iou_min: float = 0.35

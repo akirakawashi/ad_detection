@@ -16,9 +16,10 @@ from scripts.classification import classify_detections, load_classifier
 from scripts.config import PipelineConfig, default_project_root, resolve_project_path
 from scripts.crops import copy_crops_by_status, save_detection_crops
 from scripts.detection import load_detector, run_detection
-from scripts.io import load_frames
+from scripts.io import iter_frames, load_frames, load_metadata
 from scripts.quality import evaluate_crop_quality
 from scripts.reports import write_pipeline_outputs
+from scripts.schemas import DetectionRecord, FrameRecord, InputMetadata
 from scripts.tracking import assign_track_ids
 from scripts.visualization import write_annotated_media
 
@@ -111,21 +112,10 @@ def main() -> int:
     print(f"detector: {config.detector_model_path}")
     print(f"classifier: {config.classifier_model_path}")
 
-    metadata, frames = load_frames(config.input_path, config.frame_stride)
-    frames_by_index = {frame.frame_index: frame for frame in frames}
-    print(f"loaded frames: {len(frames)} ({metadata.input_type}, fps={metadata.fps:.3f})")
-
     detector = load_detector(config)
-    detections = run_detection(detector, frames, metadata, config)
+    metadata, frames, detections = run_detection_stage(detector, config)
     print(f"detections after gate: {len(detections)}")
 
-    save_detection_crops(
-        detections,
-        frames_by_index,
-        config.output_dir / "crops" / "all",
-        config,
-    )
-    evaluate_crop_quality(detections, config)
     assign_track_ids(detections, config)
 
     if any(
@@ -146,6 +136,60 @@ def main() -> int:
     print(f"tracks: {len(tracks)}")
     print(f"report: {config.output_dir / 'report.html'}")
     return 0
+
+
+def run_detection_stage(
+    detector,
+    config: PipelineConfig,
+) -> tuple[InputMetadata, list[FrameRecord] | None, list[DetectionRecord]]:
+    metadata = load_metadata(config.input_path, config.frame_stride)
+    if metadata.input_type == "video":
+        detections = run_video_detection_stream(detector, metadata, config)
+        return metadata, None, detections
+
+    metadata, frames = load_frames(config.input_path, config.frame_stride)
+    print(f"loaded frames: {len(frames)} ({metadata.input_type}, fps={metadata.fps:.3f})")
+    detections = run_detection(detector, frames, metadata, config)
+    save_detection_crops(
+        detections,
+        {frame.frame_index: frame for frame in frames},
+        config.output_dir / "crops" / "all",
+        config,
+    )
+    evaluate_crop_quality(detections, config)
+    return metadata, frames, detections
+
+
+def run_video_detection_stream(
+    detector,
+    metadata: InputMetadata,
+    config: PipelineConfig,
+) -> list[DetectionRecord]:
+    detections: list[DetectionRecord] = []
+    crops_dir = config.output_dir / "crops" / "all"
+    processed_frames = 0
+
+    print(
+        f"streaming video frames: stride={metadata.frame_stride}, fps={metadata.fps:.3f}",
+        flush=True,
+    )
+    for frame in iter_frames(config.input_path, config.frame_stride):
+        frame_detections = run_detection(detector, [frame], metadata, config)
+        save_detection_crops(frame_detections, {frame.frame_index: frame}, crops_dir, config)
+        evaluate_crop_quality(frame_detections, config)
+        detections.extend(frame_detections)
+
+        processed_frames += 1
+        if processed_frames % 100 == 0:
+            print(
+                f"processed sampled frames: {processed_frames}, detections after gate: {len(detections)}",
+                flush=True,
+            )
+
+    if processed_frames == 0:
+        raise RuntimeError(f"No frames were read from video: {config.input_path}")
+    print(f"processed sampled frames: {processed_frames} ({metadata.input_type}, fps={metadata.fps:.3f})")
+    return detections
 
 
 if __name__ == "__main__":
