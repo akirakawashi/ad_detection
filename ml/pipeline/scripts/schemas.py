@@ -81,6 +81,7 @@ class DetectionRecord:
     brand_status: str = "not_classified"
     final_status: str = "not_classified"
     business_brand: str = "other"
+    business_visible: bool = False
     status_reason: str = "not_classified_no_valid_crop"
 
     @property
@@ -92,6 +93,7 @@ class DetectionRecord:
         row["track_id"] = "" if self.track_id is None else self.track_id
         row["object_id"] = "" if self.object_id is None else self.object_id
         row["classification_attempted"] = int(self.classification_attempted)
+        row["business_visible"] = int(self.business_visible)
         return row
 
 
@@ -126,6 +128,7 @@ class TrackRecord:
     final_brand_conf: float
     final_status: str
     business_brand: str
+    business_visible: bool
     final_status_reason: str
     track_confirmed: bool
     track_final_score: float
@@ -135,6 +138,7 @@ class TrackRecord:
         row = asdict(self)
         row["manual_review_required"] = int(self.manual_review_required)
         row["track_confirmed"] = int(self.track_confirmed)
+        row["business_visible"] = int(self.business_visible)
         return row
 
 

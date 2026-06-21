@@ -55,6 +55,8 @@ def write_annotated_media(
         for frame in frames:
             annotated = frame.image.copy()
             for detection in detections_by_frame.get(frame.frame_index, []):
+                if not detection.business_visible:
+                    continue
                 track = tracks_by_id.get(detection.track_id or -1)
                 draw_detection(annotated, detection, track)
 
@@ -106,6 +108,8 @@ def write_annotated_video_from_source(
             annotated = frame.copy()
             frame_detections = detections_by_frame.get(frame_index, [])
             for detection in frame_detections:
+                if not detection.business_visible:
+                    continue
                 track = tracks_by_id.get(detection.track_id or -1)
                 draw_detection(annotated, detection, track)
 

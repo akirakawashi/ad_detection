@@ -119,6 +119,7 @@ def apply_track_brand_override(track: TrackRecord, brand: str, reason: str) -> N
     track.final_brand_conf = 1.0
     track.final_status = "other" if brand == "other" else "detected_brand"
     track.business_brand = brand
+    track.business_visible = True
     track.final_status_reason = f"manual_override:{reason}"
     track.manual_review_required = False
     track.track_final_score = (
@@ -137,4 +138,5 @@ def apply_detection_brand_override(detection: DetectionRecord, brand: str, reaso
     detection.brand_status = "other" if brand == "other" else "detected_brand"
     detection.final_status = "other" if brand == "other" else "detected_brand"
     detection.business_brand = brand
+    detection.business_visible = True
     detection.status_reason = f"manual_override:{reason}"

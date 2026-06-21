@@ -57,6 +57,9 @@ class PipelineConfig:
     object_merge_max_area_ratio: float = 5.0
     object_merge_max_aspect_ratio: float = 3.0
 
+    business_min_object_detections: int = 3
+    business_min_visible_duration_sec: float = 0.20
+
     visibility_area_norm: float = 0.05
     min_position_weight: float = 0.20
 

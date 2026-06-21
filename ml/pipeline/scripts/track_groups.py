@@ -46,6 +46,7 @@ def assign_object_groups(
 def stabilize_object_brands(
     tracks: list[TrackRecord],
     detections: list[DetectionRecord],
+    config: PipelineConfig,
 ) -> int:
     tracks_by_object: dict[int, list[TrackRecord]] = defaultdict(list)
     detections_by_object: dict[int, list[DetectionRecord]] = defaultdict(list)
@@ -59,12 +60,16 @@ def stabilize_object_brands(
     changed = 0
     for object_id, object_tracks in tracks_by_object.items():
         brand = choose_object_business_brand(object_tracks)
+        object_detections = detections_by_object.get(object_id, [])
+        visible = is_business_visible(object_tracks, object_detections, config)
         for track in object_tracks:
             if track.business_brand != brand:
                 changed += 1
             track.business_brand = brand
-        for detection in detections_by_object.get(object_id, []):
+            track.business_visible = visible
+        for detection in object_detections:
             detection.business_brand = brand
+            detection.business_visible = visible
 
     return changed
 
@@ -180,3 +185,21 @@ def choose_object_business_brand(tracks: list[TrackRecord]) -> str:
     if model_scores:
         return max(model_scores.items(), key=lambda item: item[1])[0]
     return "other"
+
+
+def is_business_visible(
+    tracks: list[TrackRecord],
+    detections: list[DetectionRecord],
+    config: PipelineConfig,
+) -> bool:
+    if any(track.final_status_reason.startswith("manual_override:") for track in tracks):
+        return True
+    if len(detections) < config.business_min_object_detections:
+        return False
+    if not detections:
+        return False
+    first_timestamp = min(detection.timestamp_sec for detection in detections)
+    last_timestamp = max(detection.timestamp_sec for detection in detections)
+    max_delta = max(detection.sample_delta_t_sec for detection in detections)
+    visible_duration = max(0.0, last_timestamp - first_timestamp + max_delta)
+    return visible_duration >= config.business_min_visible_duration_sec

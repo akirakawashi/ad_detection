@@ -72,6 +72,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--object-merge-max-center-distance", type=float, default=0.18)
     parser.add_argument("--object-merge-max-area-ratio", type=float, default=5.0)
     parser.add_argument("--object-merge-max-aspect-ratio", type=float, default=3.0)
+    parser.add_argument("--business-min-object-detections", type=int, default=3)
+    parser.add_argument("--business-min-visible-duration-sec", type=float, default=0.20)
     parser.add_argument(
         "--draw-rejected",
         action="store_true",
@@ -118,6 +120,8 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         object_merge_max_center_distance=args.object_merge_max_center_distance,
         object_merge_max_area_ratio=args.object_merge_max_area_ratio,
         object_merge_max_aspect_ratio=args.object_merge_max_aspect_ratio,
+        business_min_object_detections=args.business_min_object_detections,
+        business_min_visible_duration_sec=args.business_min_visible_duration_sec,
         device=args.device,
         draw_rejected=args.draw_rejected,
         save_annotated_frames=args.save_annotated_frames,
@@ -160,7 +164,7 @@ def main() -> int:
     applied_overrides = apply_brand_overrides(tracks, detections, config.brand_overrides_path)
     if applied_overrides:
         print(f"brand overrides applied: {applied_overrides}")
-    stabilized_tracks = stabilize_object_brands(tracks, detections)
+    stabilized_tracks = stabilize_object_brands(tracks, detections, config)
     if stabilized_tracks:
         print(f"tracks stabilized by object brand: {stabilized_tracks}")
 

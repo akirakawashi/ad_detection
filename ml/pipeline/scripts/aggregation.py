@@ -101,7 +101,8 @@ def _aggregate_one(
         final_brand=final_brand,
         final_brand_conf=final_conf,
         final_status=final_status,
-        business_brand=_business_brand(final_brand),
+        business_brand=_business_brand(final_brand, final_status, final_reason),
+        business_visible=False,
         final_status_reason=final_reason,
         track_confirmed=track_confirmed,
         track_final_score=track_final_score,
@@ -157,8 +158,12 @@ def _aggregate_brand(
     return "", top_conf, "unknown", "brand_conf_low"
 
 
-def _business_brand(final_brand: str) -> str:
-    if final_brand in TARGET_BRANDS or final_brand == "other":
+def _business_brand(final_brand: str, final_status: str, final_reason: str) -> str:
+    if final_reason.startswith("manual_override:"):
+        return final_brand if final_brand in TARGET_BRANDS or final_brand == "other" else "other"
+    if final_status == "detected_brand" and final_brand in TARGET_BRANDS:
+        return final_brand
+    if final_status == "other" and final_brand == "other":
         return final_brand
     return "other"
 
