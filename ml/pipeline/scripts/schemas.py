@@ -58,6 +58,7 @@ class DetectionRecord:
     center_y_norm: float
     position_label: str
     position_weight: float
+    object_id: int | None = None
     crop_path: str = ""
     crop_width: int = 0
     crop_height: int = 0
@@ -79,6 +80,7 @@ class DetectionRecord:
     overall_score: float = 0.0
     brand_status: str = "not_classified"
     final_status: str = "not_classified"
+    business_brand: str = "other"
     status_reason: str = "not_classified_no_valid_crop"
 
     @property
@@ -88,6 +90,7 @@ class DetectionRecord:
     def to_row(self) -> dict[str, Any]:
         row = asdict(self)
         row["track_id"] = "" if self.track_id is None else self.track_id
+        row["object_id"] = "" if self.object_id is None else self.object_id
         row["classification_attempted"] = int(self.classification_attempted)
         return row
 
@@ -97,6 +100,7 @@ class TrackRecord:
     run_id: str
     source_path: str
     track_id: int
+    object_id: int
     first_frame_index: int
     last_frame_index: int
     first_timestamp_sec: float
@@ -121,6 +125,7 @@ class TrackRecord:
     final_brand: str
     final_brand_conf: float
     final_status: str
+    business_brand: str
     final_status_reason: str
     track_confirmed: bool
     track_final_score: float

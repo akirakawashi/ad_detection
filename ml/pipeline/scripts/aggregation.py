@@ -29,6 +29,7 @@ def aggregate_tracks(
         tracks.append(track)
         for detection in ordered:
             detection.final_status = track.final_status
+            detection.business_brand = track.business_brand
             detection.status_reason = track.final_status_reason
             detection.overall_score = compute_detection_overall_score(detection)
     return tracks
@@ -73,6 +74,7 @@ def _aggregate_one(
         run_id=detections[0].run_id,
         source_path=detections[0].source_path,
         track_id=track_id,
+        object_id=track_id,
         first_frame_index=detections[0].frame_index,
         last_frame_index=detections[-1].frame_index,
         first_timestamp_sec=detections[0].timestamp_sec,
@@ -99,6 +101,7 @@ def _aggregate_one(
         final_brand=final_brand,
         final_brand_conf=final_conf,
         final_status=final_status,
+        business_brand=_business_brand(final_brand),
         final_status_reason=final_reason,
         track_confirmed=track_confirmed,
         track_final_score=track_final_score,
@@ -152,6 +155,12 @@ def _aggregate_brand(
         return "", top_conf, "unknown", "brand_conf_low"
 
     return "", top_conf, "unknown", "brand_conf_low"
+
+
+def _business_brand(final_brand: str) -> str:
+    if final_brand in TARGET_BRANDS or final_brand == "other":
+        return final_brand
+    return "other"
 
 
 def _dominant_not_classified_reason(detections: list[DetectionRecord]) -> str:

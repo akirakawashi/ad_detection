@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 import shutil
 
 import cv2
 
 from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, FrameRecord
+from scripts.schemas import DetectionRecord, FrameRecord, TrackRecord
 
 
 def save_detection_crops(
@@ -63,7 +64,7 @@ def crop_detection(
 
 def copy_crops_by_status(
     detections: list[DetectionRecord],
-    tracks_by_id: dict[int, object],
+    tracks_by_id: Mapping[int, TrackRecord],
     crops_root: Path,
 ) -> None:
     for detection in detections:

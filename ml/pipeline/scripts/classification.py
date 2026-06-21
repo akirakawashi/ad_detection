@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import timm
 import torch
@@ -45,7 +44,7 @@ def load_classifier(config: PipelineConfig) -> BrandClassifier:
     model_name = args.get("model", "convnext_tiny.fb_in22k_ft_in1k")
     input_size = int(args.get("input_size", 500))
 
-    device = torch.device(config.device if config.device else ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = torch.device(normalize_torch_device(config.device))
     model = timm.create_model(model_name, pretrained=False, num_classes=len(classes))
     model.load_state_dict(checkpoint["model_state"])
     model.to(device)
@@ -114,6 +113,17 @@ def normalize_brand_name(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "+7":
         return "plus7"
+    return normalized
+
+
+def normalize_torch_device(value: str | None) -> str:
+    if value is None or value == "":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    normalized = str(value).strip()
+    if normalized.isdigit():
+        return f"cuda:{normalized}"
+    if "," in normalized and all(part.strip().isdigit() for part in normalized.split(",")):
+        return f"cuda:{normalized.split(',', maxsplit=1)[0].strip()}"
     return normalized
 
 

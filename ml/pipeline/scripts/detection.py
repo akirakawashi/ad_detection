@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from ultralytics import YOLO
 
 from scripts.config import PipelineConfig
@@ -25,7 +27,7 @@ def run_detection(
     names = getattr(model, "names", {}) or {}
 
     for frame in frames:
-        predict_kwargs = {
+        predict_kwargs: dict[str, object] = {
             "conf": config.detector_conf_min,
             "iou": config.detector_iou,
             "verbose": False,
@@ -35,12 +37,12 @@ def run_detection(
         if config.device is not None:
             predict_kwargs["device"] = config.device
 
-        results = model.predict(frame.image, **predict_kwargs)
+        results = cast(Any, model).predict(frame.image, **predict_kwargs)
         frame_det_index = 0
         for result in results:
             if result.boxes is None:
                 continue
-            for box in result.boxes:
+            for box in cast(Any, result.boxes):
                 xyxy = box.xyxy[0].detach().cpu().tolist()
                 conf = float(box.conf[0].detach().cpu())
                 class_id = int(box.cls[0].detach().cpu())

@@ -17,9 +17,11 @@ from scripts.config import PipelineConfig, default_project_root, resolve_project
 from scripts.crops import copy_crops_by_status, save_detection_crops
 from scripts.detection import load_detector, run_detection
 from scripts.io import iter_frames, load_frames, load_metadata
+from scripts.overrides import apply_brand_overrides
 from scripts.quality import evaluate_crop_quality
 from scripts.reports import write_pipeline_outputs
 from scripts.schemas import DetectionRecord, FrameRecord, InputMetadata
+from scripts.track_groups import assign_object_groups, stabilize_object_brands
 from scripts.tracking import assign_track_ids
 from scripts.visualization import write_annotated_media
 
@@ -49,6 +51,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--frame-stride", type=int, default=10)
     parser.add_argument("--device", default=None, help="Torch/Ultralytics device, e.g. cpu or 0.")
+    parser.add_argument(
+        "--brand-overrides",
+        type=Path,
+        default=None,
+        help="CSV with manual brand overrides by track_id or crop_name.",
+    )
     parser.add_argument("--detector-conf-min", type=float, default=0.50)
     parser.add_argument("--detector-imgsz", type=int, default=960)
     parser.add_argument("--detector-iou", type=float, default=0.50)
@@ -59,7 +67,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-detection-aspect-ratio", type=float, default=8.0)
     parser.add_argument("--min-track-detections", type=int, default=2)
     parser.add_argument("--min-track-frame-span", type=int, default=10)
-    parser.add_argument("--draw-rejected", action="store_true", help="Draw not_classified tracks.")
+    parser.add_argument("--object-merge-max-gap-frames", type=int, default=90)
+    parser.add_argument("--object-merge-min-iou", type=float, default=0.02)
+    parser.add_argument("--object-merge-max-center-distance", type=float, default=0.18)
+    parser.add_argument("--object-merge-max-area-ratio", type=float, default=5.0)
+    parser.add_argument("--object-merge-max-aspect-ratio", type=float, default=3.0)
+    parser.add_argument(
+        "--draw-rejected",
+        action="store_true",
+        help="Deprecated; all detections are drawn with business labels.",
+    )
     parser.add_argument("--save-annotated-frames", action="store_true", help="Save annotated frame JPGs.")
     return parser.parse_args()
 
@@ -79,6 +96,11 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         output_dir=output_dir,
         detector_model_path=resolve_project_path(project_root, args.detector_model),
         classifier_model_path=resolve_project_path(project_root, args.classifier_model),
+        brand_overrides_path=(
+            resolve_project_path(project_root, args.brand_overrides)
+            if args.brand_overrides
+            else None
+        ),
         run_id=run_id,
         frame_stride=args.frame_stride,
         detector_conf_min=args.detector_conf_min,
@@ -91,6 +113,11 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         max_detection_aspect_ratio=args.max_detection_aspect_ratio,
         min_track_detections=args.min_track_detections,
         min_track_frame_span=args.min_track_frame_span,
+        object_merge_max_gap_frames=args.object_merge_max_gap_frames,
+        object_merge_min_iou=args.object_merge_min_iou,
+        object_merge_max_center_distance=args.object_merge_max_center_distance,
+        object_merge_max_area_ratio=args.object_merge_max_area_ratio,
+        object_merge_max_aspect_ratio=args.object_merge_max_aspect_ratio,
         device=args.device,
         draw_rejected=args.draw_rejected,
         save_annotated_frames=args.save_annotated_frames,
@@ -127,6 +154,16 @@ def main() -> int:
         classify_detections(classifier, detections, config)
 
     tracks = aggregate_tracks(detections, config)
+    object_count = assign_object_groups(tracks, detections, config)
+    print(f"objects: {object_count}")
+
+    applied_overrides = apply_brand_overrides(tracks, detections, config.brand_overrides_path)
+    if applied_overrides:
+        print(f"brand overrides applied: {applied_overrides}")
+    stabilized_tracks = stabilize_object_brands(tracks, detections)
+    if stabilized_tracks:
+        print(f"tracks stabilized by object brand: {stabilized_tracks}")
+
     tracks_by_id = {track.track_id: track for track in tracks}
     copy_crops_by_status(detections, tracks_by_id, config.output_dir / "crops")
 

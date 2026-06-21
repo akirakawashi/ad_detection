@@ -11,11 +11,10 @@ from scripts.schemas import DetectionRecord, FrameRecord, InputMetadata, TrackRe
 
 
 COLORS = {
-    "detected_brand": (30, 180, 60),
+    "mts": (0, 0, 255),
+    "plus7": (255, 180, 0),
+    "miranda": (30, 180, 60),
     "other": (150, 150, 150),
-    "unknown": (0, 210, 255),
-    "manual_review": (0, 140, 255),
-    "not_classified": (40, 40, 220),
 }
 
 
@@ -57,8 +56,6 @@ def write_annotated_media(
             annotated = frame.image.copy()
             for detection in detections_by_frame.get(frame.frame_index, []):
                 track = tracks_by_id.get(detection.track_id or -1)
-                if not config.draw_rejected and track and track.final_status == "not_classified":
-                    continue
                 draw_detection(annotated, detection, track)
 
             if annotated_dir is not None:
@@ -91,7 +88,7 @@ def write_annotated_video_from_source(
     output_video.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(
         str(output_video),
-        cv2.VideoWriter_fourcc(*"mp4v"),
+        video_writer_fourcc("mp4v"),
         fps,
         (width, height),
     )
@@ -110,8 +107,6 @@ def write_annotated_video_from_source(
             frame_detections = detections_by_frame.get(frame_index, [])
             for detection in frame_detections:
                 track = tracks_by_id.get(detection.track_id or -1)
-                if not config.draw_rejected and track and track.final_status == "not_classified":
-                    continue
                 draw_detection(annotated, detection, track)
 
             if annotated_dir is not None and frame_detections:
@@ -130,41 +125,29 @@ def draw_detection(
     detection: DetectionRecord,
     track: TrackRecord | None,
 ) -> None:
-    status = track.final_status if track else detection.final_status
-    color = COLORS.get(status, (255, 255, 255))
+    brand = display_brand(detection, track)
+    color = COLORS.get(brand, COLORS["other"])
     x1, y1, x2, y2 = (int(round(value)) for value in detection.bbox_xyxy)
     cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
 
-    lines = label_lines(detection, track)
-    y = max(18, y1 - 6)
-    for index, line in enumerate(lines):
-        text_y = y + index * 18
-        cv2.putText(
-            image,
-            line,
-            (x1, text_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            2,
-            cv2.LINE_AA,
-        )
+    label = brand.upper()
+    text_y = max(18, y1 - 6)
+    cv2.putText(
+        image,
+        label,
+        (x1, text_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        color,
+        2,
+        cv2.LINE_AA,
+    )
 
 
-def label_lines(detection: DetectionRecord, track: TrackRecord | None) -> list[str]:
-    if track and track.final_status == "detected_brand":
-        first = f"Brand: {track.final_brand.upper()}"
-    else:
-        status = track.final_status if track else detection.final_status
-        first = f"Status: {status}"
-
-    track_id = track.track_id if track else detection.track_id
-    final_conf = track.final_brand_conf if track else detection.brand_conf
-    return [
-        first,
-        f"Det:{detection.det_conf:.2f} Cls:{final_conf:.2f} CropQ:{detection.crop_quality_score:.2f}",
-        f"Area:{detection.area_ratio * 100:.2f}% VideoVis:{detection.video_visibility_score:.2f} Track:{track_id}",
-    ]
+def display_brand(detection: DetectionRecord, track: TrackRecord | None) -> str:
+    if track:
+        return track.business_brand or "other"
+    return detection.business_brand or "other"
 
 
 def create_annotated_video_writer(
@@ -179,10 +162,14 @@ def create_annotated_video_writer(
     first = frames[0]
     writer = cv2.VideoWriter(
         str(path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
+        video_writer_fourcc("mp4v"),
         fps,
         (first.width, first.height),
     )
     if not writer.isOpened():
         raise RuntimeError(f"Could not create annotated video: {path}")
     return writer
+
+
+def video_writer_fourcc(codec: str) -> int:
+    return int(getattr(cv2, "VideoWriter_fourcc")(*codec))

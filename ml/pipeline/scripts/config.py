@@ -13,6 +13,7 @@ class PipelineConfig:
     output_dir: Path
     detector_model_path: Path
     classifier_model_path: Path
+    brand_overrides_path: Path | None
     run_id: str
 
     frame_stride: int = 10
@@ -49,6 +50,12 @@ class PipelineConfig:
     min_track_detections: int = 2
     min_track_frame_span: int = 10
     best_crops_per_track: int = 3
+
+    object_merge_max_gap_frames: int = 90
+    object_merge_min_iou: float = 0.02
+    object_merge_max_center_distance: float = 0.18
+    object_merge_max_area_ratio: float = 5.0
+    object_merge_max_aspect_ratio: float = 3.0
 
     visibility_area_norm: float = 0.05
     min_position_weight: float = 0.20

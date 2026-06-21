@@ -61,22 +61,17 @@ def write_summaries(output_dir: Path, detections_df: pd.DataFrame, tracks_df: pd
         write_dict_csv(output_dir / "frame_summary.csv", [])
     else:
         detection_summary = (
-            detections_df.assign(
-                brand=detections_df["brand_pred"].where(
-                    detections_df["brand_pred"].astype(str) != "",
-                    detections_df["final_status"],
-                )
-            )
-            .groupby(["brand", "final_status"], dropna=False)
+            detections_df.groupby(["business_brand"], dropna=False)
             .agg(
                 detection_count=("det_index", "count"),
                 mean_brand_conf=("brand_conf", "mean"),
                 max_brand_conf=("brand_conf", "max"),
                 first_timestamp_sec=("timestamp_sec", "min"),
                 last_timestamp_sec=("timestamp_sec", "max"),
+                sum_video_visibility_score=("video_visibility_score", "sum"),
             )
             .reset_index()
-            .rename(columns={"final_status": "status"})
+            .rename(columns={"business_brand": "brand"})
         )
         detection_summary.to_csv(output_dir / "brand_summary_by_detections.csv", index=False)
 
@@ -84,11 +79,10 @@ def write_summaries(output_dir: Path, detections_df: pd.DataFrame, tracks_df: pd
             detections_df.groupby(["frame_index", "timestamp_sec"], dropna=False)
             .agg(
                 detections_total=("det_index", "count"),
-                detected_brand_count=("final_status", lambda s: int((s == "detected_brand").sum())),
-                other_count=("final_status", lambda s: int((s == "other").sum())),
-                unknown_count=("final_status", lambda s: int((s == "unknown").sum())),
-                manual_review_count=("final_status", lambda s: int((s == "manual_review").sum())),
-                not_classified_count=("final_status", lambda s: int((s == "not_classified").sum())),
+                mts_count=("business_brand", lambda s: int((s == "mts").sum())),
+                plus7_count=("business_brand", lambda s: int((s == "plus7").sum())),
+                miranda_count=("business_brand", lambda s: int((s == "miranda").sum())),
+                other_count=("business_brand", lambda s: int((s == "other").sum())),
                 sum_video_visibility_score=("video_visibility_score", "sum"),
             )
             .reset_index()
@@ -99,16 +93,10 @@ def write_summaries(output_dir: Path, detections_df: pd.DataFrame, tracks_df: pd
         write_dict_csv(output_dir / "brand_summary_by_tracks.csv", [])
         return
 
-    track_summary = (
-        tracks_df.assign(
-            brand=tracks_df["final_brand"].where(
-                tracks_df["final_brand"].astype(str) != "",
-                tracks_df["final_status"],
-            )
-        )
-        .groupby(["brand", "final_status"], dropna=False)
+    object_df = (
+        tracks_df.groupby(["object_id", "business_brand"], dropna=False)
         .agg(
-            track_count=("track_id", "count"),
+            track_fragment_count=("track_id", "count"),
             mean_track_final_score=("track_final_score", "mean"),
             mean_video_visibility_score=("mean_video_visibility_score", "mean"),
             sum_video_visibility_score=("sum_video_visibility_score", "sum"),
@@ -119,7 +107,23 @@ def write_summaries(output_dir: Path, detections_df: pd.DataFrame, tracks_df: pd
             last_timestamp_sec=("last_timestamp_sec", "max"),
         )
         .reset_index()
-        .rename(columns={"final_status": "status"})
+    )
+    track_summary = (
+        object_df.groupby(["business_brand"], dropna=False)
+        .agg(
+            object_count=("object_id", "count"),
+            track_fragment_count=("track_fragment_count", "sum"),
+            mean_track_final_score=("mean_track_final_score", "mean"),
+            mean_video_visibility_score=("mean_video_visibility_score", "mean"),
+            sum_video_visibility_score=("sum_video_visibility_score", "sum"),
+            video_visibility_weighted_seconds=("video_visibility_weighted_seconds", "sum"),
+            mean_final_brand_conf=("mean_final_brand_conf", "mean"),
+            max_final_brand_conf=("max_final_brand_conf", "max"),
+            first_timestamp_sec=("first_timestamp_sec", "min"),
+            last_timestamp_sec=("last_timestamp_sec", "max"),
+        )
+        .reset_index()
+        .rename(columns={"business_brand": "brand"})
     )
     track_summary.to_csv(output_dir / "brand_summary_by_tracks.csv", index=False)
 
@@ -140,41 +144,35 @@ def write_charts(charts_dir: Path, detections_df: pd.DataFrame, tracks_df: pd.Da
         try:
             figure.write_image(str(charts_dir / name))
         except Exception as exc:  # noqa: BLE001 - charts are optional artifacts
-            failures.append(f"{name}: {exc}")
+            fallback_name = f"{Path(name).stem}.html"
+            figure.write_html(str(charts_dir / fallback_name), include_plotlyjs="cdn")
+            failures.append(f"{name}: {exc}\nfallback: {fallback_name}")
 
     if not tracks_df.empty:
-        track_brand = tracks_df.assign(
-            brand=tracks_df["final_brand"].where(
-                tracks_df["final_brand"].astype(str) != "",
-                tracks_df["final_status"],
-            )
-        )
+        object_brand = build_object_frame(tracks_df)
         save_chart(
             "tracks_by_brand.png",
-            px.histogram(track_brand, x="brand", color="final_status", title="Tracks by brand"),
+            px.histogram(object_brand, x="brand", color="brand", title="Objects by brand"),
         )
         save_chart(
             "video_visibility_by_brand.png",
             px.bar(
-                track_brand.groupby("brand", as_index=False)["video_visibility_weighted_seconds"].sum(),
+                object_brand.groupby("brand", as_index=False)["video_visibility_weighted_seconds"].sum(),
                 x="brand",
                 y="video_visibility_weighted_seconds",
                 title="Time-weighted video visibility by brand",
             ),
         )
-        save_chart(
-            "manual_review_cases.png",
-            px.histogram(track_brand, x="final_status", title="Track statuses"),
-        )
 
     if not detections_df.empty:
         save_chart(
             "detections_by_brand.png",
-            px.histogram(detections_df, x="brand_pred", color="final_status", title="Detections by brand"),
-        )
-        save_chart(
-            "status_counts.png",
-            px.histogram(detections_df, x="final_status", title="Detection final statuses"),
+            px.histogram(
+                detections_df,
+                x="business_brand",
+                color="business_brand",
+                title="Detections by brand",
+            ),
         )
         save_chart(
             "confidence_distribution.png",
@@ -185,7 +183,7 @@ def write_charts(charts_dir: Path, detections_df: pd.DataFrame, tracks_df: pd.Da
             px.histogram(detections_df, x="crop_quality_score", title="Crop quality score distribution"),
         )
         timeline = (
-            detections_df.groupby(["timestamp_sec", "final_status"], as_index=False)[
+            detections_df.groupby(["timestamp_sec", "business_brand"], as_index=False)[
                 "video_visibility_score"
             ].sum()
         )
@@ -195,7 +193,7 @@ def write_charts(charts_dir: Path, detections_df: pd.DataFrame, tracks_df: pd.Da
                 timeline,
                 x="timestamp_sec",
                 y="video_visibility_score",
-                color="final_status",
+                color="business_brand",
                 title="Video visibility timeline",
             ),
         )
@@ -205,13 +203,25 @@ def write_charts(charts_dir: Path, detections_df: pd.DataFrame, tracks_df: pd.Da
                 detections_df,
                 x="timestamp_sec",
                 y="area_ratio",
-                color="final_status",
+                color="business_brand",
                 title="Area ratio timeline",
             ),
         )
 
     if failures:
         (charts_dir / "chart_failures.txt").write_text("\n".join(failures) + "\n", encoding="utf-8")
+
+
+def build_object_frame(tracks_df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        tracks_df.groupby(["object_id", "business_brand"], dropna=False)
+        .agg(
+            track_fragment_count=("track_id", "count"),
+            video_visibility_weighted_seconds=("video_visibility_weighted_seconds", "sum"),
+        )
+        .reset_index()
+        .rename(columns={"business_brand": "brand"})
+    )
 
 
 def write_html_report(
@@ -248,25 +258,28 @@ def write_html_report(
     if tracks_df.empty:
         parts.append("<p>No tracks found.</p>")
     else:
-        parts.append(table_from_rows(tracks_df.head(50).to_dict("records")))
+        display_columns = [
+            "object_id",
+            "track_id",
+            "business_brand",
+            "first_timestamp_sec",
+            "last_timestamp_sec",
+            "visible_duration_sec",
+            "detections_count",
+            "final_brand_conf",
+            "track_final_score",
+            "video_visibility_weighted_seconds",
+            "best_crop_path",
+        ]
+        parts.append(table_from_rows(tracks_df[display_columns].head(50).to_dict("records")))
 
     parts.append("<h2>Detection Summary</h2>")
     if detections_df.empty:
         parts.append("<p>No detections found.</p>")
     else:
-        status_counts = detections_df["final_status"].value_counts().reset_index()
-        status_counts.columns = ["final_status", "count"]
-        parts.append(table_from_rows(status_counts.to_dict("records")))
-
-    parts.append("<h2>Manual Review Priority</h2>")
-    if tracks_df.empty:
-        parts.append("<p>No manual review candidates.</p>")
-    else:
-        manual = tracks_df[
-            (tracks_df["manual_review_required"] == 1)
-            | (tracks_df["final_status"].isin(["manual_review", "not_classified"]))
-        ].sort_values("video_visibility_weighted_seconds", ascending=False)
-        parts.append(gallery(manual.head(30).to_dict("records")))
+        brand_counts = detections_df["business_brand"].value_counts().reset_index()
+        brand_counts.columns = ["brand", "count"]
+        parts.append(table_from_rows(brand_counts.to_dict("records")))
 
     parts.extend(["</body></html>"])
     path.write_text("\n".join(parts), encoding="utf-8")
@@ -285,19 +298,3 @@ def table_from_rows(rows: list[dict[str, Any]]) -> str:
         html_rows.append("</tr>")
     html_rows.append("</tbody></table>")
     return "".join(html_rows)
-
-
-def gallery(rows: list[dict[str, Any]]) -> str:
-    if not rows:
-        return "<p>No rows.</p>"
-    cards = ["<div class='gallery'>"]
-    for row in rows:
-        crop_path = str(row.get("best_crop_path", ""))
-        label = f"track={row.get('track_id')} status={row.get('final_status')} brand={row.get('final_brand')}"
-        cards.append("<div class='card'>")
-        if crop_path:
-            cards.append(f"<img src='{html.escape(crop_path)}' alt='{html.escape(label)}'>")
-        cards.append(f"<div>{html.escape(label)}</div>")
-        cards.append("</div>")
-    cards.append("</div>")
-    return "".join(cards)
