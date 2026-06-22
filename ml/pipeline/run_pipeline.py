@@ -16,6 +16,7 @@ from scripts.classification import classify_detections, load_classifier
 from scripts.config import PipelineConfig, default_project_root, resolve_project_path
 from scripts.crops import copy_crops_by_status, save_detection_crops
 from scripts.detection import load_detector, run_detection
+from scripts.html_viewer import write_html_overlay_viewer
 from scripts.io import iter_frames, load_frames, load_metadata
 from scripts.overrides import apply_brand_overrides
 from scripts.quality import evaluate_crop_quality
@@ -171,9 +172,12 @@ def main() -> int:
     copy_crops_by_status(detections, tracks_by_id, config.output_dir / "crops")
 
     write_annotated_media(config.output_dir, frames, detections, tracks, metadata, config)
+    write_html_overlay_viewer(config.output_dir, metadata, detections, tracks, config)
     write_pipeline_outputs(config.output_dir, metadata, detections, tracks)
 
     print(f"tracks: {len(tracks)}")
+    if metadata.input_type == "video":
+        print(f"viewer: {config.output_dir / 'viewer.html'}")
     print(f"report: {config.output_dir / 'report.html'}")
     return 0
 

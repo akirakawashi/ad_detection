@@ -117,14 +117,40 @@ def find_best_object_id(
 ) -> int | None:
     best_object_id: int | None = None
     best_score = 0.0
+    skipped_object_ids: set[int] = set()
 
     for candidate in assigned_fragments:
+        object_id = candidate.track.object_id
+        if object_id in skipped_object_ids:
+            continue
+        if object_has_temporal_overlap(fragment, assigned_fragments, object_id):
+            skipped_object_ids.add(object_id)
+            continue
+
         score = track_link_score(candidate, fragment, config)
         if score > best_score:
             best_score = score
-            best_object_id = candidate.track.object_id
+            best_object_id = object_id
 
     return best_object_id
+
+
+def object_has_temporal_overlap(
+    fragment: TrackFragment,
+    assigned_fragments: list[TrackFragment],
+    object_id: int,
+) -> bool:
+    return any(
+        candidate.track.object_id == object_id and fragments_overlap_in_time(candidate, fragment)
+        for candidate in assigned_fragments
+    )
+
+
+def fragments_overlap_in_time(first: TrackFragment, second: TrackFragment) -> bool:
+    return (
+        first.track.first_frame_index <= second.track.last_frame_index
+        and second.track.first_frame_index <= first.track.last_frame_index
+    )
 
 
 def track_link_score(
