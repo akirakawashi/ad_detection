@@ -21,6 +21,10 @@ services:
     restart: unless-stopped
     env_file:
       - ./apps/backend/.env
+    environment:
+      MINIO_BROWSER: "on"
+      MINIO_BROWSER_REDIRECT_URL: http://127.0.0.1:9001
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     command: server /data --console-address ":9001"
     ports:
       - "127.0.0.1:9000:9000"

@@ -1,48 +1,39 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from functools import lru_cache
 
-from application.queries.get_run import GetRunHandler
-from application.queries.get_run_objects import GetRunObjectsHandler
-from application.queries.get_run_overlay import GetRunOverlayHandler
-from application.queries.get_run_summary import GetRunSummaryHandler
-from application.queries.get_run_timeline import GetRunTimelineHandler
-from application.queries.list_runs import ListRunsHandler
-from infrastructure.repositories.file_pipeline_run_repository import FilePipelineRunRepository
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from application.services.pipeline_run_service import PipelineRunService
+from infrastructure.database.session import get_db_session
+from infrastructure.repositories.sql_pipeline_run_repository import (
+    SqlPipelineRunRepository,
+)
+from infrastructure.storage.minio_storage import MinioStorage
 from settings.factory import ConfigFactory
 
 
-@lru_cache(maxsize=1)
+@lru_cache
 def get_config() -> ConfigFactory:
     return ConfigFactory()
 
 
-@lru_cache(maxsize=1)
-def get_pipeline_run_repository() -> FilePipelineRunRepository:
-    config = get_config()
-    return FilePipelineRunRepository(config.pipeline_outputs.output_dir)
+@lru_cache
+def get_object_storage() -> MinioStorage:
+    return MinioStorage(get_config().object_storage)
 
 
-def get_list_runs_handler() -> ListRunsHandler:
-    return ListRunsHandler(get_pipeline_run_repository())
+def get_session() -> Generator[Session, None, None]:
+    yield from get_db_session()
 
 
-def get_run_handler() -> GetRunHandler:
-    return GetRunHandler(get_pipeline_run_repository())
-
-
-def get_run_summary_handler() -> GetRunSummaryHandler:
-    return GetRunSummaryHandler(get_pipeline_run_repository())
-
-
-def get_run_objects_handler() -> GetRunObjectsHandler:
-    return GetRunObjectsHandler(get_pipeline_run_repository())
-
-
-def get_run_timeline_handler() -> GetRunTimelineHandler:
-    return GetRunTimelineHandler(get_pipeline_run_repository())
-
-
-def get_run_overlay_handler() -> GetRunOverlayHandler:
-    return GetRunOverlayHandler(get_pipeline_run_repository())
-
+def get_run_service(
+    session: Session = Depends(get_session),
+    storage: MinioStorage = Depends(get_object_storage),
+) -> PipelineRunService:
+    return PipelineRunService(
+        SqlPipelineRunRepository(session),
+        storage,
+    )
