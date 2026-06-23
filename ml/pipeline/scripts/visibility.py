@@ -17,7 +17,9 @@ def fill_geometry_fields(
     detection.center_y = (detection.bbox_y1 + detection.bbox_y2) / 2.0
     detection.center_x_norm = detection.center_x / max(1, frame.width)
     detection.center_y_norm = detection.center_y / max(1, frame.height)
-    detection.position_label = position_label(detection.center_x_norm, detection.center_y_norm)
+    detection.position_label = position_label(
+        detection.center_x_norm, detection.center_y_norm
+    )
     detection.position_weight = position_weight(
         detection.center_x_norm,
         detection.center_y_norm,
@@ -30,7 +32,9 @@ def fill_geometry_fields(
     )
 
 
-def position_weight(center_x_norm: float, center_y_norm: float, minimum: float) -> float:
+def position_weight(
+    center_x_norm: float, center_y_norm: float, minimum: float
+) -> float:
     dx = center_x_norm - 0.5
     dy = center_y_norm - 0.5
     max_distance = math.sqrt(0.5**2 + 0.5**2)
@@ -39,6 +43,18 @@ def position_weight(center_x_norm: float, center_y_norm: float, minimum: float) 
 
 
 def position_label(center_x_norm: float, center_y_norm: float) -> str:
-    horizontal = "left" if center_x_norm < 1 / 3 else "right" if center_x_norm > 2 / 3 else "center"
-    vertical = "top" if center_y_norm < 1 / 3 else "bottom" if center_y_norm > 2 / 3 else "middle"
+    horizontal = (
+        "left"
+        if center_x_norm < 1 / 3
+        else "right"
+        if center_x_norm > 2 / 3
+        else "center"
+    )
+    vertical = (
+        "top"
+        if center_y_norm < 1 / 3
+        else "bottom"
+        if center_y_norm > 2 / 3
+        else "middle"
+    )
     return f"{horizontal}-{vertical}"

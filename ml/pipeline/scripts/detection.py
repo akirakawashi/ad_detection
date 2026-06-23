@@ -54,7 +54,9 @@ def run_detection(
                 area = width * height
                 area_ratio = area / max(1.0, frame.width * frame.height)
 
-                if not _passes_detection_gate(width, height, area_ratio, aspect_ratio, config):
+                if not _passes_detection_gate(
+                    width, height, area_ratio, aspect_ratio, config
+                ):
                     continue
 
                 detection = DetectionRecord(
@@ -102,5 +104,7 @@ def _passes_detection_gate(
         width >= config.min_detection_width
         and height >= config.min_detection_height
         and area_ratio >= config.min_detection_area_ratio
-        and config.min_detection_aspect_ratio <= aspect_ratio <= config.max_detection_aspect_ratio
+        and config.min_detection_aspect_ratio
+        <= aspect_ratio
+        <= config.max_detection_aspect_ratio
     )

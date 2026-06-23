@@ -141,7 +141,8 @@ def object_has_temporal_overlap(
     object_id: int,
 ) -> bool:
     return any(
-        candidate.track.object_id == object_id and fragments_overlap_in_time(candidate, fragment)
+        candidate.track.object_id == object_id
+        and fragments_overlap_in_time(candidate, fragment)
         for candidate in assigned_fragments
     )
 
@@ -175,7 +176,10 @@ def track_link_score(
     if not iou_ok and not center_ok:
         return 0.0
 
-    if ratio(previous_detection.area_ratio, current_detection.area_ratio) > config.object_merge_max_area_ratio:
+    if (
+        ratio(previous_detection.area_ratio, current_detection.area_ratio)
+        > config.object_merge_max_area_ratio
+    ):
         return 0.0
     if (
         ratio(previous_detection.bbox_aspect_ratio, current_detection.bbox_aspect_ratio)
@@ -184,7 +188,9 @@ def track_link_score(
         return 0.0
 
     gap_score = 1.0 - (frame_gap / max(1.0, float(config.object_merge_max_gap_frames)))
-    center_score = 1.0 - min(1.0, center_distance / max(1e-9, config.object_merge_max_center_distance))
+    center_score = 1.0 - min(
+        1.0, center_distance / max(1e-9, config.object_merge_max_center_distance)
+    )
     return 2.0 * iou + center_score + 0.25 * gap_score
 
 
@@ -199,7 +205,9 @@ def choose_object_business_brand(tracks: list[TrackRecord]) -> str:
     model_scores: dict[str, float] = defaultdict(float)
 
     for track in tracks:
-        score = max(track.video_visibility_weighted_seconds, track.visible_duration_sec, 1.0)
+        score = max(
+            track.video_visibility_weighted_seconds, track.visible_duration_sec, 1.0
+        )
         score *= max(track.final_brand_conf, 0.01)
         if track.final_status_reason.startswith("manual_override:"):
             manual_scores[track.business_brand] += score
@@ -220,7 +228,9 @@ def is_business_visible(
 ) -> bool:
     if any(track.final_status_reason.startswith("manual_ignore:") for track in tracks):
         return False
-    if any(track.final_status_reason.startswith("manual_override:") for track in tracks):
+    if any(
+        track.final_status_reason.startswith("manual_override:") for track in tracks
+    ):
         return True
     if len(detections) < config.business_min_object_detections:
         return False

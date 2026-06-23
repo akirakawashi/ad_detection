@@ -50,7 +50,9 @@ def write_annotated_media(
     if frames is None:
         return
 
-    writer = create_annotated_video_writer(output_dir / "video" / "annotated_video.mp4", frames, metadata)
+    writer = create_annotated_video_writer(
+        output_dir / "video" / "annotated_video.mp4", frames, metadata
+    )
     try:
         for frame in frames:
             annotated = frame.image.copy()
@@ -125,7 +127,9 @@ def build_render_detections_by_frame(
     metadata: InputMetadata,
     config: PipelineConfig,
 ) -> dict[int, list[DetectionRecord]]:
-    visible_detections = [detection for detection in detections if detection.business_visible]
+    visible_detections = [
+        detection for detection in detections if detection.business_visible
+    ]
     detections_by_frame: dict[int, list[DetectionRecord]] = {}
     detections_by_object: dict[int, list[DetectionRecord]] = {}
 
@@ -139,7 +143,9 @@ def build_render_detections_by_frame(
         return detections_by_frame
 
     for object_detections in detections_by_object.values():
-        ordered = sorted(object_detections, key=lambda item: (item.frame_index, item.det_index))
+        ordered = sorted(
+            object_detections, key=lambda item: (item.frame_index, item.det_index)
+        )
         for previous, current in zip(ordered, ordered[1:]):
             frame_gap = current.frame_index - previous.frame_index
             missing_frames = frame_gap - 1
@@ -148,7 +154,9 @@ def build_render_detections_by_frame(
             for offset in range(1, frame_gap):
                 frame_index = previous.frame_index + offset
                 ratio = offset / frame_gap
-                interpolated = interpolate_detection(previous, current, frame_index, ratio, metadata)
+                interpolated = interpolate_detection(
+                    previous, current, frame_index, ratio, metadata
+                )
                 detections_by_frame.setdefault(frame_index, []).append(interpolated)
 
     for frame_detections in detections_by_frame.values():
@@ -185,10 +193,14 @@ def interpolate_detection(
     frame_area = max(1.0, float(metadata.width * metadata.height))
     center_x = (x1 + x2) / 2.0
     center_y = (y1 + y2) / 2.0
-    timestamp_sec = frame_index / metadata.fps if metadata.fps > 0 else lerp(
-        previous.timestamp_sec,
-        current.timestamp_sec,
-        ratio,
+    timestamp_sec = (
+        frame_index / metadata.fps
+        if metadata.fps > 0
+        else lerp(
+            previous.timestamp_sec,
+            current.timestamp_sec,
+            ratio,
+        )
     )
 
     return replace(

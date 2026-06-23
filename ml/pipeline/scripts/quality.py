@@ -8,7 +8,9 @@ from scripts.config import PipelineConfig
 from scripts.schemas import DetectionRecord
 
 
-def evaluate_crop_quality(detections: list[DetectionRecord], config: PipelineConfig) -> None:
+def evaluate_crop_quality(
+    detections: list[DetectionRecord], config: PipelineConfig
+) -> None:
     for detection in detections:
         _evaluate_one(detection, config)
 
@@ -37,10 +39,23 @@ def _evaluate_one(detection: DetectionRecord, config: PipelineConfig) -> None:
 
     blur_score = _blur_score(blur_var, config)
     brightness_score, video_quality_reason = _brightness_score(brightness, config)
-    size_score = min(1.0, detection.area_ratio / max(1e-9, config.min_classify_area_ratio * 3))
-    detector_score = min(1.0, detection.det_conf / max(1e-9, config.detector_conf_min * 2))
+    size_score = min(
+        1.0, detection.area_ratio / max(1e-9, config.min_classify_area_ratio * 3)
+    )
+    detector_score = min(
+        1.0, detection.det_conf / max(1e-9, config.detector_conf_min * 2)
+    )
 
-    score = max(0.0, min(1.0, 0.35 * size_score + 0.30 * blur_score + 0.20 * brightness_score + 0.15 * detector_score))
+    score = max(
+        0.0,
+        min(
+            1.0,
+            0.35 * size_score
+            + 0.30 * blur_score
+            + 0.20 * brightness_score
+            + 0.15 * detector_score,
+        ),
+    )
 
     reason = "ok"
     if blur_var < config.blur_borderline_variance:
@@ -90,8 +105,12 @@ def _blur_score(blur_var: float, config: PipelineConfig) -> float:
 
 def _brightness_score(brightness: float, config: PipelineConfig) -> tuple[float, str]:
     if brightness < config.brightness_min:
-        return max(0.0, brightness / max(1e-9, config.brightness_min)), "low_video_quality"
+        return max(
+            0.0, brightness / max(1e-9, config.brightness_min)
+        ), "low_video_quality"
     if brightness > config.brightness_max:
         excess = brightness - config.brightness_max
-        return max(0.0, 1.0 - excess / max(1e-9, 255 - config.brightness_max)), "low_video_quality"
+        return max(
+            0.0, 1.0 - excess / max(1e-9, 255 - config.brightness_max)
+        ), "low_video_quality"
     return 1.0, "ok"

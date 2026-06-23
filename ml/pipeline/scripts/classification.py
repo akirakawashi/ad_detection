@@ -19,9 +19,14 @@ class ResizePad:
         self.fill = fill
 
     def __call__(self, image: Image.Image) -> Image.Image:
-        contained = ImageOps.contain(image, (self.size, self.size), Image.Resampling.BICUBIC)
+        contained = ImageOps.contain(
+            image, (self.size, self.size), Image.Resampling.BICUBIC
+        )
         canvas = Image.new("RGB", (self.size, self.size), self.fill)
-        offset = ((self.size - contained.width) // 2, (self.size - contained.height) // 2)
+        offset = (
+            (self.size - contained.width) // 2,
+            (self.size - contained.height) // 2,
+        )
         canvas.paste(contained, offset)
         return canvas
 
@@ -57,7 +62,9 @@ def load_classifier(config: PipelineConfig) -> BrandClassifier:
             transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ]
     )
-    return BrandClassifier(model=model, classes=classes, transform=transform, device=device)
+    return BrandClassifier(
+        model=model, classes=classes, transform=transform, device=device
+    )
 
 
 def classify_detections(
@@ -80,7 +87,9 @@ def classify_detections(
             tensor = classifier.transform(image).unsqueeze(0).to(classifier.device)
             logits = classifier.model(tensor)
             probabilities = torch.softmax(logits, dim=1)[0].detach().cpu()
-            top_scores, top_indices = torch.topk(probabilities, k=min(3, len(classifier.classes)))
+            top_scores, top_indices = torch.topk(
+                probabilities, k=min(3, len(classifier.classes))
+            )
             top = [
                 (classifier.classes[int(index)], float(score))
                 for score, index in zip(top_scores.tolist(), top_indices.tolist())
@@ -131,7 +140,9 @@ def normalize_torch_device(value: str | None) -> str:
     normalized = str(value).strip()
     if normalized.isdigit():
         return f"cuda:{normalized}"
-    if "," in normalized and all(part.strip().isdigit() for part in normalized.split(",")):
+    if "," in normalized and all(
+        part.strip().isdigit() for part in normalized.split(",")
+    ):
         return f"cuda:{normalized.split(',', maxsplit=1)[0].strip()}"
     return normalized
 

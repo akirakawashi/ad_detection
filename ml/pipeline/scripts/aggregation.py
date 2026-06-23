@@ -41,8 +41,12 @@ def _aggregate_one(
     config: PipelineConfig,
 ) -> TrackRecord:
     best_detection = max(detections, key=_best_detection_score)
-    classified = [detection for detection in detections if detection.classification_attempted]
-    final_brand, final_conf, final_status, final_reason = _aggregate_brand(classified, config)
+    classified = [
+        detection for detection in detections if detection.classification_attempted
+    ]
+    final_brand, final_conf, final_status, final_reason = _aggregate_brand(
+        classified, config
+    )
     track_confirmed = _is_track_confirmed(detections, config)
     if not track_confirmed:
         final_brand = ""
@@ -54,15 +58,21 @@ def _aggregate_one(
         if not track_confirmed:
             final_reason = "short_track_in_video"
 
-    visible_duration_sec = detections[-1].timestamp_sec - detections[0].timestamp_sec + max(
-        detection.sample_delta_t_sec for detection in detections
+    visible_duration_sec = (
+        detections[-1].timestamp_sec
+        - detections[0].timestamp_sec
+        + max(detection.sample_delta_t_sec for detection in detections)
     )
     if visible_duration_sec < 0:
         visible_duration_sec = 0.0
 
     mean_det_conf = mean(detection.det_conf for detection in detections)
-    best_crop_quality_score = max(detection.crop_quality_score for detection in detections)
-    mean_video_visibility_score = mean(detection.video_visibility_score for detection in detections)
+    best_crop_quality_score = max(
+        detection.crop_quality_score for detection in detections
+    )
+    mean_video_visibility_score = mean(
+        detection.video_visibility_score for detection in detections
+    )
     track_final_score = (
         0.30 * mean_det_conf
         + 0.25 * best_crop_quality_score
@@ -87,14 +97,20 @@ def _aggregate_one(
         best_timestamp_sec=best_detection.timestamp_sec,
         mean_det_conf=mean_det_conf,
         max_det_conf=max(detection.det_conf for detection in detections),
-        mean_crop_quality_score=mean(detection.crop_quality_score for detection in detections),
+        mean_crop_quality_score=mean(
+            detection.crop_quality_score for detection in detections
+        ),
         best_crop_quality_score=best_crop_quality_score,
         max_area_ratio=max(detection.area_ratio for detection in detections),
         mean_area_ratio=mean(detection.area_ratio for detection in detections),
         sum_area_ratio=sum(detection.area_ratio for detection in detections),
-        mean_position_weight=mean(detection.position_weight for detection in detections),
+        mean_position_weight=mean(
+            detection.position_weight for detection in detections
+        ),
         mean_video_visibility_score=mean_video_visibility_score,
-        sum_video_visibility_score=sum(detection.video_visibility_score for detection in detections),
+        sum_video_visibility_score=sum(
+            detection.video_visibility_score for detection in detections
+        ),
         video_visibility_weighted_seconds=sum(
             detection.video_visibility_weighted_seconds for detection in detections
         ),
@@ -125,14 +141,13 @@ def _aggregate_brand(
     if not scores:
         return "", 0.0, "unknown", "brand_conf_low"
 
-    brand_scores = {
-        brand: mean(values)
-        for brand, values in scores.items()
-    }
+    brand_scores = {brand: mean(values) for brand, values in scores.items()}
     ordered = sorted(brand_scores.items(), key=lambda item: item[1], reverse=True)
     top_brand, top_conf = ordered[0]
     second_conf = ordered[1][1] if len(ordered) > 1 else 0.0
-    vote_counts = Counter(detection.brand_pred for detection in detections if detection.brand_pred)
+    vote_counts = Counter(
+        detection.brand_pred for detection in detections if detection.brand_pred
+    )
     conflict = (
         len(vote_counts) > 1
         and top_conf >= config.manual_review_min
@@ -160,7 +175,11 @@ def _aggregate_brand(
 
 def _business_brand(final_brand: str, final_status: str, final_reason: str) -> str:
     if final_reason.startswith("manual_override:"):
-        return final_brand if final_brand in TARGET_BRANDS or final_brand == "other" else "other"
+        return (
+            final_brand
+            if final_brand in TARGET_BRANDS or final_brand == "other"
+            else "other"
+        )
     if final_status == "detected_brand" and final_brand in TARGET_BRANDS:
         return final_brand
     if final_status == "other" and final_brand == "other":
@@ -169,7 +188,11 @@ def _business_brand(final_brand: str, final_status: str, final_reason: str) -> s
 
 
 def _track_object_id(detections: list[DetectionRecord], default: int) -> int:
-    object_ids = [detection.object_id for detection in detections if detection.object_id is not None]
+    object_ids = [
+        detection.object_id
+        for detection in detections
+        if detection.object_id is not None
+    ]
     if not object_ids:
         return default
     return Counter(object_ids).most_common(1)[0][0]
@@ -179,14 +202,17 @@ def _dominant_not_classified_reason(detections: list[DetectionRecord]) -> str:
     reasons = [
         detection.crop_quality_reason
         for detection in detections
-        if detection.crop_quality_reason and detection.crop_quality_reason not in {"ok", "not_evaluated"}
+        if detection.crop_quality_reason
+        and detection.crop_quality_reason not in {"ok", "not_evaluated"}
     ]
     if not reasons:
         return "not_classified_no_valid_crop"
     return Counter(reasons).most_common(1)[0][0]
 
 
-def _is_track_confirmed(detections: list[DetectionRecord], config: PipelineConfig) -> bool:
+def _is_track_confirmed(
+    detections: list[DetectionRecord], config: PipelineConfig
+) -> bool:
     if detections[0].input_type == "image":
         return True
     frame_span = detections[-1].frame_index - detections[0].frame_index

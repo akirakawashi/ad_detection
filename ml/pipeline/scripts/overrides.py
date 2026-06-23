@@ -55,7 +55,9 @@ def apply_brand_overrides(
         if track_id is None and override.crop_name:
             track_id = crop_name_to_track_id.get(override.crop_name)
         if track_id is None:
-            print(f"brand override skipped: track not found for crop={override.crop_name}")
+            print(
+                f"brand override skipped: track not found for crop={override.crop_name}"
+            )
             continue
 
         matched_track = tracks_by_id.get(track_id)
@@ -87,7 +89,9 @@ def read_brand_overrides(path: Path) -> list[BrandOverride]:
             brand = normalize_brand(row.get("brand", ""))
             reason = row.get("reason", "").strip() or "manual_override"
             if track_id is None and not crop_name:
-                raise ValueError(f"Override row must contain track_id or crop_name: {row}")
+                raise ValueError(
+                    f"Override row must contain track_id or crop_name: {row}"
+                )
             overrides.append(
                 BrandOverride(
                     track_id=track_id,
@@ -135,7 +139,9 @@ def apply_track_override(track: TrackRecord, brand: str, reason: str) -> None:
     )
 
 
-def apply_detection_override(detection: DetectionRecord, brand: str, reason: str) -> None:
+def apply_detection_override(
+    detection: DetectionRecord, brand: str, reason: str
+) -> None:
     if brand == IGNORE_BRAND:
         apply_detection_ignore_override(detection, reason)
         return

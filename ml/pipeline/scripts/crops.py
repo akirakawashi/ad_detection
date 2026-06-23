@@ -29,7 +29,9 @@ def save_detection_crops(
             detection.crop_height = 0
             continue
 
-        crop_name = f"frame_{detection.frame_index:06d}_det_{detection.det_index:03d}.jpg"
+        crop_name = (
+            f"frame_{detection.frame_index:06d}_det_{detection.det_index:03d}.jpg"
+        )
         crop_path = crops_dir / crop_name
         cv2.imwrite(str(crop_path), crop)
         detection.crop_path = str(crop_path)
@@ -73,7 +75,9 @@ def copy_crops_by_status(
         track = tracks_by_id.get(detection.track_id or -1)
         if track is None:
             status_parts = ["unknown"]
-        elif getattr(track, "final_status") == "detected_brand" and getattr(track, "final_brand"):
+        elif getattr(track, "final_status") == "detected_brand" and getattr(
+            track, "final_brand"
+        ):
             status_parts = ["detected_brand", getattr(track, "final_brand")]
         else:
             status_parts = [getattr(track, "final_status", "unknown")]
