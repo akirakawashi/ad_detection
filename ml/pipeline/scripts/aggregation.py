@@ -5,17 +5,26 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from statistics import mean
 
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, TrackRecord
-
-
-TARGET_BRANDS = {"mts", "plus7", "miranda"}
+from .config import PipelineConfig
+from .domain import FinalStatus, TARGET_BRANDS
+from .schemas import DetectionRecord, TrackRecord
 
 
 def aggregate_tracks(
     detections: list[DetectionRecord],
     config: PipelineConfig,
 ) -> list[TrackRecord]:
+    """Compatibility wrapper that builds tracks and propagates their results."""
+    tracks = build_tracks(detections, config)
+    apply_track_results(tracks, detections)
+    return tracks
+
+
+def build_tracks(
+    detections: list[DetectionRecord],
+    config: PipelineConfig,
+) -> list[TrackRecord]:
+    """Build track summaries without mutating detection-level final results."""
     grouped: dict[int, list[DetectionRecord]] = defaultdict(list)
     for detection in detections:
         if detection.track_id is None:
@@ -27,12 +36,25 @@ def aggregate_tracks(
         ordered = sorted(track_detections, key=lambda item: item.timestamp_sec)
         track = _aggregate_one(track_id, ordered, config)
         tracks.append(track)
-        for detection in ordered:
-            detection.final_status = track.final_status
-            detection.business_brand = track.business_brand
-            detection.status_reason = track.final_status_reason
-            detection.overall_score = compute_detection_overall_score(detection)
     return tracks
+
+
+def apply_track_results(
+    tracks: list[TrackRecord],
+    detections: list[DetectionRecord],
+) -> None:
+    """Propagate final track-level decisions back to their detections."""
+    tracks_by_id = {track.track_id: track for track in tracks}
+    for detection in detections:
+        if detection.track_id is None:
+            continue
+        track = tracks_by_id.get(detection.track_id)
+        if track is None:
+            continue
+        detection.final_status = track.final_status
+        detection.business_brand = track.business_brand
+        detection.status_reason = track.final_status_reason
+        detection.overall_score = compute_detection_overall_score(detection)
 
 
 def _aggregate_one(
@@ -51,9 +73,9 @@ def _aggregate_one(
     if not track_confirmed:
         final_brand = ""
         final_conf = 0.0
-        final_status = "not_classified"
+        final_status = FinalStatus.NOT_CLASSIFIED
         final_reason = "short_track_in_video"
-    if final_status == "not_classified":
+    if final_status == FinalStatus.NOT_CLASSIFIED:
         final_reason = _dominant_not_classified_reason(detections)
         if not track_confirmed:
             final_reason = "short_track_in_video"
@@ -122,16 +144,21 @@ def _aggregate_one(
         final_status_reason=final_reason,
         track_confirmed=track_confirmed,
         track_final_score=track_final_score,
-        manual_review_required=final_status == "manual_review",
+        manual_review_required=final_status == FinalStatus.MANUAL_REVIEW,
     )
 
 
 def _aggregate_brand(
     detections: list[DetectionRecord],
     config: PipelineConfig,
-) -> tuple[str, float, str, str]:
+) -> tuple[str, float, FinalStatus, str]:
     if not detections:
-        return "", 0.0, "not_classified", "not_classified_no_valid_crop"
+        return (
+            "",
+            0.0,
+            FinalStatus.NOT_CLASSIFIED,
+            "not_classified_no_valid_crop",
+        )
 
     scores: dict[str, list[float]] = defaultdict(list)
     for detection in detections:
@@ -139,7 +166,7 @@ def _aggregate_brand(
             scores[detection.brand_pred].append(detection.brand_conf)
 
     if not scores:
-        return "", 0.0, "unknown", "brand_conf_low"
+        return "", 0.0, FinalStatus.UNKNOWN, "brand_conf_low"
 
     brand_scores = {brand: mean(values) for brand, values in scores.items()}
     ordered = sorted(brand_scores.items(), key=lambda item: item[1], reverse=True)
@@ -150,39 +177,53 @@ def _aggregate_brand(
     )
     conflict = (
         len(vote_counts) > 1
-        and top_conf >= config.manual_review_min
-        and top_conf - second_conf < config.brand_conflict_margin
+        and top_conf >= config.classification.manual_review_min
+        and top_conf - second_conf < config.classification.conflict_margin
     )
     if conflict:
-        return "", top_conf, "manual_review", "brand_conflict_across_track"
+        return (
+            "",
+            top_conf,
+            FinalStatus.MANUAL_REVIEW,
+            "brand_conflict_across_track",
+        )
 
     if top_brand == "other":
-        if top_conf >= config.other_conf_accept:
-            return "other", top_conf, "other", "ok"
-        if top_conf >= config.manual_review_min:
-            return "other", top_conf, "manual_review", "brand_conf_low"
-        return "", top_conf, "unknown", "brand_conf_low"
+        if top_conf >= config.classification.other_confidence_accept:
+            return "other", top_conf, FinalStatus.OTHER, "ok"
+        if top_conf >= config.classification.manual_review_min:
+            return "other", top_conf, FinalStatus.MANUAL_REVIEW, "brand_conf_low"
+        return "", top_conf, FinalStatus.UNKNOWN, "brand_conf_low"
 
     if top_brand in TARGET_BRANDS:
-        if top_conf >= config.brand_conf_accept:
-            return top_brand, top_conf, "detected_brand", "ok"
-        if top_conf >= config.manual_review_min:
-            return top_brand, top_conf, "manual_review", "brand_conf_low"
-        return "", top_conf, "unknown", "brand_conf_low"
+        if top_conf >= config.classification.brand_confidence_accept:
+            return top_brand, top_conf, FinalStatus.DETECTED_BRAND, "ok"
+        if top_conf >= config.classification.manual_review_min:
+            return (
+                top_brand,
+                top_conf,
+                FinalStatus.MANUAL_REVIEW,
+                "brand_conf_low",
+            )
+        return "", top_conf, FinalStatus.UNKNOWN, "brand_conf_low"
 
-    return "", top_conf, "unknown", "brand_conf_low"
+    return "", top_conf, FinalStatus.UNKNOWN, "brand_conf_low"
 
 
-def _business_brand(final_brand: str, final_status: str, final_reason: str) -> str:
+def _business_brand(
+    final_brand: str,
+    final_status: FinalStatus,
+    final_reason: str,
+) -> str:
     if final_reason.startswith("manual_override:"):
         return (
             final_brand
             if final_brand in TARGET_BRANDS or final_brand == "other"
             else "other"
         )
-    if final_status == "detected_brand" and final_brand in TARGET_BRANDS:
+    if final_status == FinalStatus.DETECTED_BRAND and final_brand in TARGET_BRANDS:
         return final_brand
-    if final_status == "other" and final_brand == "other":
+    if final_status == FinalStatus.OTHER and final_brand == "other":
         return final_brand
     return "other"
 
@@ -217,8 +258,8 @@ def _is_track_confirmed(
         return True
     frame_span = detections[-1].frame_index - detections[0].frame_index
     return (
-        len(detections) >= config.min_track_detections
-        and frame_span >= config.min_track_frame_span
+        len(detections) >= config.tracking.min_detections
+        and frame_span >= config.tracking.min_frame_span
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.reporting.charts import (
+from .reporting.charts import (
     build_brand_chart_frame,
     build_object_frame,
     business_bar_chart,
@@ -14,7 +14,7 @@ from scripts.reporting.charts import (
     visibility_timeline_chart,
     write_charts,
 )
-from scripts.reporting.common import (
+from .reporting.common import (
     brand_label,
     brand_order,
     filter_business_visible,
@@ -24,10 +24,10 @@ from scripts.reporting.common import (
     normalize_brand_series,
     ordered_labels,
 )
-from scripts.reporting.csv_io import write_dict_csv, write_input_meta
-from scripts.reporting.html_report import table_from_rows, write_html_report
-from scripts.reporting.summaries import write_summaries
-from scripts.reporting.writer import write_pipeline_outputs
+from .reporting.csv_io import write_dict_csv, write_input_meta
+from .reporting.html_report import table_from_rows, write_html_report
+from .reporting.summaries import write_summaries
+from .reporting.writer import write_pipeline_outputs
 
 __all__ = [
     "brand_label",

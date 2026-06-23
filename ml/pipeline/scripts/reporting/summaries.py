@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.reporting.common import filter_business_visible
-from scripts.reporting.csv_io import write_dict_csv
+from .common import filter_business_visible
+from .csv_io import write_dict_csv
 
 
 def write_summaries(

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, FrameRecord
+from .config import PipelineConfig
+from .schemas import DetectionRecord, FrameRecord
 
 
 def fill_geometry_fields(
@@ -23,9 +23,12 @@ def fill_geometry_fields(
     detection.position_weight = position_weight(
         detection.center_x_norm,
         detection.center_y_norm,
-        config.min_position_weight,
+        config.visibility.min_position_weight,
     )
-    area_score = min(1.0, detection.area_ratio / max(1e-9, config.visibility_area_norm))
+    area_score = min(
+        1.0,
+        detection.area_ratio / max(1e-9, config.visibility.area_norm),
+    )
     detection.video_visibility_score = area_score * detection.position_weight
     detection.video_visibility_weighted_seconds = (
         detection.video_visibility_score * frame.delta_t_sec

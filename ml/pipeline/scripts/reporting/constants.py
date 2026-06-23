@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..domain import TARGET_BRANDS as DOMAIN_TARGET_BRANDS
+
 BRAND_LABELS = {
     "mts": "МТС",
     "miranda": "Миранда",
@@ -15,5 +17,5 @@ BRAND_COLORS = {
     "other": "#facc15",
 }
 BRAND_ORDER = ["mts", "miranda", "plus7", "other"]
-TARGET_BRANDS = ["mts", "miranda", "plus7"]
+TARGET_BRANDS = [brand for brand in BRAND_ORDER if brand in DOMAIN_TARGET_BRANDS]
 TIMELINE_BUCKET_SECONDS = 10

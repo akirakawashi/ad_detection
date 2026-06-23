@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.reporting.constants import BRAND_COLORS, BRAND_LABELS, BRAND_ORDER
+from .constants import BRAND_COLORS, BRAND_LABELS, BRAND_ORDER
 
 
 def filter_business_visible(dataframe: pd.DataFrame) -> pd.DataFrame:

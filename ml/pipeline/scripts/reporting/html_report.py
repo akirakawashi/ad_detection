@@ -8,8 +8,8 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.reporting.common import filter_business_visible
-from scripts.schemas import InputMetadata
+from ..schemas import InputMetadata
+from .common import filter_business_visible
 
 
 def write_html_report(

@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, InputMetadata, TrackRecord
-from scripts.viewer.constants import BRAND_STYLES, TARGET_BRANDS
-from scripts.visualization import build_render_detections_by_frame
+from ..config import PipelineConfig
+from ..domain import TARGET_BRANDS
+from ..schemas import DetectionRecord, InputMetadata, TrackRecord
+from ..visualization import build_render_detections_by_frame
+from .constants import BRAND_STYLES
 
 
 def build_overlay_payload(

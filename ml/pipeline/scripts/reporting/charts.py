@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.reporting.common import (
+from .common import (
     brand_label,
     brand_order,
     filter_business_visible,
@@ -17,7 +17,7 @@ from scripts.reporting.common import (
     normalize_brand_series,
     ordered_labels,
 )
-from scripts.reporting.constants import (
+from .constants import (
     BRAND_ORDER,
     TARGET_BRANDS,
     TIMELINE_BUCKET_SECONDS,

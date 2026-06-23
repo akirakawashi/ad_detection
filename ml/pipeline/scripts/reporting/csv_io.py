@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from scripts.schemas import InputMetadata
+from ..schemas import InputMetadata
 
 
 def write_input_meta(path: Path, metadata: InputMetadata) -> None:

@@ -6,10 +6,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from math import hypot
 
-from scripts.aggregation import TARGET_BRANDS
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, TrackRecord
-from scripts.tracking import bbox_iou
+from .config import PipelineConfig
+from .domain import TARGET_BRANDS
+from .schemas import DetectionRecord, TrackRecord
+from .tracking import bbox_iou
 
 
 @dataclass(frozen=True)
@@ -160,7 +160,7 @@ def track_link_score(
     config: PipelineConfig,
 ) -> float:
     frame_gap = current.track.first_frame_index - previous.track.last_frame_index
-    if frame_gap < 0 or frame_gap > config.object_merge_max_gap_frames:
+    if frame_gap < 0 or frame_gap > config.tracking.object_merge_max_gap_frames:
         return 0.0
 
     previous_detection = previous.last_detection
@@ -171,25 +171,28 @@ def track_link_score(
         previous_detection.center_y_norm - current_detection.center_y_norm,
     )
 
-    iou_ok = iou >= config.object_merge_min_iou
-    center_ok = center_distance <= config.object_merge_max_center_distance
+    iou_ok = iou >= config.tracking.object_merge_min_iou
+    center_ok = center_distance <= config.tracking.object_merge_max_center_distance
     if not iou_ok and not center_ok:
         return 0.0
 
     if (
         ratio(previous_detection.area_ratio, current_detection.area_ratio)
-        > config.object_merge_max_area_ratio
+        > config.tracking.object_merge_max_area_ratio
     ):
         return 0.0
     if (
         ratio(previous_detection.bbox_aspect_ratio, current_detection.bbox_aspect_ratio)
-        > config.object_merge_max_aspect_ratio
+        > config.tracking.object_merge_max_aspect_ratio
     ):
         return 0.0
 
-    gap_score = 1.0 - (frame_gap / max(1.0, float(config.object_merge_max_gap_frames)))
+    gap_score = 1.0 - (
+        frame_gap / max(1.0, float(config.tracking.object_merge_max_gap_frames))
+    )
     center_score = 1.0 - min(
-        1.0, center_distance / max(1e-9, config.object_merge_max_center_distance)
+        1.0,
+        center_distance / max(1e-9, config.tracking.object_merge_max_center_distance),
     )
     return 2.0 * iou + center_score + 0.25 * gap_score
 
@@ -232,7 +235,7 @@ def is_business_visible(
         track.final_status_reason.startswith("manual_override:") for track in tracks
     ):
         return True
-    if len(detections) < config.business_min_object_detections:
+    if len(detections) < config.business.min_object_detections:
         return False
     if not detections:
         return False
@@ -240,4 +243,4 @@ def is_business_visible(
     last_timestamp = max(detection.timestamp_sec for detection in detections)
     max_delta = max(detection.sample_delta_t_sec for detection in detections)
     visible_duration = max(0.0, last_timestamp - first_timestamp + max_delta)
-    return visible_duration >= config.business_min_visible_duration_sec
+    return visible_duration >= config.business.min_visible_duration_sec

@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, InputMetadata, TrackRecord
-from scripts.viewer.payload import build_overlay_payload
-from scripts.viewer.template import render_viewer_html
+from ..config import PipelineConfig
+from ..schemas import DetectionRecord, InputMetadata, TrackRecord
+from .payload import build_overlay_payload
+from .template import render_viewer_html
 
 
 def write_html_overlay_viewer(

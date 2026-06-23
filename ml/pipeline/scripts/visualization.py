@@ -8,8 +8,8 @@ from pathlib import Path
 
 import cv2
 
-from scripts.config import PipelineConfig
-from scripts.schemas import DetectionRecord, FrameRecord, InputMetadata, TrackRecord
+from .config import PipelineConfig
+from .schemas import DetectionRecord, FrameRecord, InputMetadata, TrackRecord
 
 
 COLORS = {
@@ -29,7 +29,7 @@ def write_annotated_media(
     config: PipelineConfig,
 ) -> None:
     annotated_dir = None
-    if config.save_annotated_frames:
+    if config.rendering.save_annotated_frames:
         annotated_dir = output_dir / "frames" / "annotated"
         annotated_dir.mkdir(parents=True, exist_ok=True)
 
@@ -166,14 +166,14 @@ def build_render_detections_by_frame(
 
 
 def render_gap_fill_max_frames(metadata: InputMetadata, config: PipelineConfig) -> int:
-    if config.render_gap_fill_max_sec <= 0:
+    if config.rendering.gap_fill_max_sec <= 0:
         return 0
     fps = metadata.fps
     if fps <= 0 and metadata.delta_t_sec > 0:
         fps = 1.0 / metadata.delta_t_sec
     if fps <= 0:
         return 0
-    return max(0, int(ceil(fps * config.render_gap_fill_max_sec)))
+    return max(0, int(ceil(fps * config.rendering.gap_fill_max_sec)))
 
 
 def interpolate_detection(

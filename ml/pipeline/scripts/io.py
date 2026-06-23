@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 
-from scripts.schemas import FrameRecord, InputMetadata
+from .schemas import FrameRecord, InputMetadata
 
 
 IMAGE_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
@@ -87,16 +87,6 @@ def _load_image(
         image=image,
     )
     return metadata, [frame]
-
-
-def _load_video(
-    input_path: Path, frame_stride: int
-) -> tuple[InputMetadata, list[FrameRecord]]:
-    metadata = _load_video_metadata(input_path, frame_stride)
-    frames = list(_iter_video_frames(input_path, frame_stride))
-    if not frames:
-        raise RuntimeError(f"No frames were read from video: {input_path}")
-    return metadata, frames
 
 
 def _load_video_metadata(input_path: Path, frame_stride: int) -> InputMetadata:

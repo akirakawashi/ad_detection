@@ -4,15 +4,36 @@
 from __future__ import annotations
 
 import argparse
-import os
-import tempfile
+import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "matplotlib"))
-
-from scripts.config import PipelineConfig, default_project_root, resolve_project_path
-from scripts.runner import run_pipeline
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from ml.pipeline.scripts.config import (
+        BusinessConfig,
+        ClassificationConfig,
+        DetectionConfig,
+        PipelineConfig,
+        RenderingConfig,
+        TrackingConfig,
+        default_project_root,
+        resolve_project_path,
+    )
+    from ml.pipeline.scripts.runner import run_pipeline
+else:
+    from .scripts.config import (
+        BusinessConfig,
+        ClassificationConfig,
+        DetectionConfig,
+        PipelineConfig,
+        RenderingConfig,
+        TrackingConfig,
+        default_project_root,
+        resolve_project_path,
+    )
+    from .scripts.runner import run_pipeline
 
 
 def parse_args() -> argparse.Namespace:
@@ -91,7 +112,6 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         else project_root / "outputs/pipeline" / run_id
     )
     return PipelineConfig(
-        project_root=project_root,
         input_path=input_path,
         output_dir=output_dir,
         detector_model_path=resolve_project_path(project_root, args.detector_model),
@@ -103,27 +123,37 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         ),
         run_id=run_id,
         frame_stride=args.frame_stride,
-        detector_conf_min=args.detector_conf_min,
-        detector_imgsz=args.detector_imgsz,
-        detector_iou=args.detector_iou,
-        min_detection_width=args.min_detection_width,
-        min_detection_height=args.min_detection_height,
-        min_detection_area_ratio=args.min_detection_area_ratio,
-        min_detection_aspect_ratio=args.min_detection_aspect_ratio,
-        max_detection_aspect_ratio=args.max_detection_aspect_ratio,
-        min_track_detections=args.min_track_detections,
-        min_track_frame_span=args.min_track_frame_span,
-        best_crops_per_object=args.best_crops_per_object,
-        object_merge_max_gap_frames=args.object_merge_max_gap_frames,
-        object_merge_min_iou=args.object_merge_min_iou,
-        object_merge_max_center_distance=args.object_merge_max_center_distance,
-        object_merge_max_area_ratio=args.object_merge_max_area_ratio,
-        object_merge_max_aspect_ratio=args.object_merge_max_aspect_ratio,
-        business_min_object_detections=args.business_min_object_detections,
-        business_min_visible_duration_sec=args.business_min_visible_duration_sec,
-        render_gap_fill_max_sec=args.render_gap_fill_max_sec,
         device=args.device,
-        save_annotated_frames=args.save_annotated_frames,
+        detection=DetectionConfig(
+            confidence_min=args.detector_conf_min,
+            image_size=args.detector_imgsz,
+            iou=args.detector_iou,
+            min_width=args.min_detection_width,
+            min_height=args.min_detection_height,
+            min_area_ratio=args.min_detection_area_ratio,
+            min_aspect_ratio=args.min_detection_aspect_ratio,
+            max_aspect_ratio=args.max_detection_aspect_ratio,
+        ),
+        classification=ClassificationConfig(
+            best_crops_per_object=args.best_crops_per_object,
+        ),
+        tracking=TrackingConfig(
+            min_detections=args.min_track_detections,
+            min_frame_span=args.min_track_frame_span,
+            object_merge_max_gap_frames=args.object_merge_max_gap_frames,
+            object_merge_min_iou=args.object_merge_min_iou,
+            object_merge_max_center_distance=args.object_merge_max_center_distance,
+            object_merge_max_area_ratio=args.object_merge_max_area_ratio,
+            object_merge_max_aspect_ratio=args.object_merge_max_aspect_ratio,
+        ),
+        business=BusinessConfig(
+            min_object_detections=args.business_min_object_detections,
+            min_visible_duration_sec=args.business_min_visible_duration_sec,
+        ),
+        rendering=RenderingConfig(
+            gap_fill_max_sec=args.render_gap_fill_max_sec,
+            save_annotated_frames=args.save_annotated_frames,
+        ),
     )
 
 
@@ -133,6 +163,7 @@ def default_run_id(input_path: Path) -> str:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     config = build_config(args)
     run_pipeline(config)
