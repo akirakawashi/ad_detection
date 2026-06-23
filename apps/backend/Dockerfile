@@ -26,22 +26,3 @@ RUN uv sync \
 RUN mkdir -p \
     /app/apps/backend/alembic \
     /app/apps/backend/src
-
-
-FROM base AS worker
-
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
-        ffmpeg \
-        libgl1 \
-        libglib2.0-0 \
-        libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN uv sync --frozen --no-install-project
-
-RUN mkdir -p \
-    /app/apps/backend/alembic \
-    /app/apps/backend/src \
-    /app/ml/pipeline \
-    /app/models
