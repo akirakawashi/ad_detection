@@ -624,6 +624,77 @@ main {
   margin-top: 18px;
 }
 
+.charts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(21, 21, 21, 0.88);
+}
+
+.charts-toolbar > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.charts-toolbar + .charts-grid {
+  margin-top: 12px;
+}
+
+.brand-filter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.brand-toggle {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--brand-color) 56%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-color) 15%, transparent);
+  color: #f7f7f7;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.brand-toggle span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--brand-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--brand-color) 70%, transparent);
+}
+
+.brand-toggle.hidden {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  opacity: 0.56;
+}
+
+.brand-toggle.hidden span {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--brand-color);
+}
+
 .chart-card {
   padding: 20px 16px 8px;
 }
