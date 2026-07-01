@@ -14,6 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
+COPY pipeline_contracts ./pipeline_contracts
 
 
 FROM base AS backend

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Path, Query
 
+from domain.entities import PipelineRunStatus
 from application.services.pipeline_run_service import PipelineRunService
 from presentation.http.dependencies import get_run_service
 from presentation.http.dto.response import (
@@ -52,7 +53,7 @@ def complete_upload(
 def list_runs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    status: str | None = Query(default=None),
+    status: PipelineRunStatus | None = Query(default=None),
     service: PipelineRunService = Depends(get_run_service),
 ) -> OkResponse[PaginatedRunsResponse]:
     result = service.list_runs(

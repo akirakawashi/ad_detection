@@ -30,10 +30,13 @@ def write_pipeline_outputs(
     detections_csv = output_dir / "detections.csv"
     tracks_csv = output_dir / "tracks.csv"
     detection_rows = [
-        DetectionCsvRow.from_detection(detection).to_csv_row()
+        DetectionCsvRow.model_validate(detection).to_csv_row()
         for detection in detections
     ]
-    track_rows = [TrackCsvRow.from_track(track).to_csv_row() for track in tracks]
+    track_rows = [
+        TrackCsvRow.model_validate(track).to_csv_row()
+        for track in tracks
+    ]
     write_dict_csv(
         detections_csv,
         detection_rows,

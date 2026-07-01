@@ -100,7 +100,7 @@ class DetectionRecord:
     def to_row(self) -> dict[str, Any]:
         from .artifacts import DetectionCsvRow
 
-        return DetectionCsvRow.from_detection(self).to_csv_row()
+        return DetectionCsvRow.model_validate(self).to_csv_row()
 
 
 @dataclass
@@ -143,7 +143,7 @@ class TrackRecord:
     def to_row(self) -> dict[str, Any]:
         from .artifacts import TrackCsvRow
 
-        return TrackCsvRow.from_track(self).to_csv_row()
+        return TrackCsvRow.model_validate(self).to_csv_row()
 
 
 DetectionMap = dict[int, list[DetectionRecord]]

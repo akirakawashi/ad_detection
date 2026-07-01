@@ -5,10 +5,11 @@ import json
 import re
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import pandas as pd
 from pandas.errors import EmptyDataError
+from pydantic import BaseModel
 
 from application.common.dto import (
     ArtifactUrlDTO,
@@ -28,7 +29,7 @@ from application.common.dto import (
     UploadTargetDTO,
 )
 from application.exceptions import InvalidVideoError, PipelineRunNotFoundError
-from application.interfaces import ObjectStorage, PipelineRunRepository
+from application.interfaces import PipelineRunRepository, RunObjectStorage
 from domain.entities import PipelineArtifactType, PipelineRunStatus
 
 
@@ -40,6 +41,8 @@ ALLOWED_VIDEO_EXTENSIONS = {
     ".mp4",
     ".webm",
 }
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 def safe_file_name(value: str) -> str:
@@ -69,7 +72,7 @@ class PipelineRunService:
     def __init__(
         self,
         repository: PipelineRunRepository,
-        storage: ObjectStorage,
+        storage: RunObjectStorage,
     ) -> None:
         self._repository = repository
         self._storage = storage
@@ -144,7 +147,7 @@ class PipelineRunService:
         *,
         page: int,
         page_size: int,
-        status: str | None,
+        status: PipelineRunStatus | None,
     ) -> PaginatedRunsDTO:
         runs, total = self._repository.list_runs(
             page=page,
@@ -217,10 +220,7 @@ class PipelineRunService:
         if artifact:
             dataframe = self._read_csv(artifact)
             if not dataframe.empty:
-                brands = [
-                    BrandSummaryDTO.model_validate(row)
-                    for row in self._native_rows(dataframe)
-                ]
+                brands = self._dataframe_models(dataframe, BrandSummaryDTO)
 
         total_objects = sum(item.object_count for item in brands)
         total_visibility = sum(
@@ -248,12 +248,7 @@ class PipelineRunService:
         dataframe = self._read_csv(artifact)
         if dataframe.empty:
             return RunObjectsDTO(run_id=run_id, objects=[])
-        if "business_visible" in dataframe.columns:
-            visible = pd.to_numeric(
-                dataframe["business_visible"],
-                errors="coerce",
-            ).fillna(0)
-            dataframe = dataframe.loc[visible > 0]
+        dataframe = self._filter_business_visible(dataframe)
         if dataframe.empty:
             return RunObjectsDTO(run_id=run_id, objects=[])
         dataframe = dataframe.sort_values(
@@ -294,12 +289,7 @@ class PipelineRunService:
         if dataframe.empty:
             points: list[RunTimelinePointDTO] = []
         else:
-            if "business_visible" in dataframe.columns:
-                visible = pd.to_numeric(
-                    dataframe["business_visible"],
-                    errors="coerce",
-                ).fillna(0)
-                dataframe = dataframe.loc[visible > 0].copy()
+            dataframe = self._filter_business_visible(dataframe)
             if dataframe.empty:
                 points = []
             else:
@@ -322,10 +312,7 @@ class PipelineRunService:
                     )
                     .reset_index()
                 )
-                points = [
-                    RunTimelinePointDTO.model_validate(row)
-                    for row in self._native_rows(grouped)
-                ]
+                points = self._dataframe_models(grouped, RunTimelinePointDTO)
         return RunTimelineDTO(
             run_id=run_id,
             bucket_seconds=bucket_seconds,
@@ -385,3 +372,20 @@ class PipelineRunService:
     @staticmethod
     def _native_rows(dataframe: pd.DataFrame) -> list[dict[str, Any]]:
         return json.loads(dataframe.to_json(orient="records", force_ascii=False))
+
+    def _dataframe_models(
+        self,
+        dataframe: pd.DataFrame,
+        model: type[ModelT],
+    ) -> list[ModelT]:
+        return [model.model_validate(row) for row in self._native_rows(dataframe)]
+
+    @staticmethod
+    def _filter_business_visible(dataframe: pd.DataFrame) -> pd.DataFrame:
+        if "business_visible" not in dataframe.columns:
+            return dataframe
+        visible = pd.to_numeric(
+            dataframe["business_visible"],
+            errors="coerce",
+        ).fillna(0)
+        return dataframe.loc[visible > 0].copy()

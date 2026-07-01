@@ -5,6 +5,15 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from domain.entities import PipelineArtifactType, PipelineRunStage, PipelineRunStatus
+from pipeline_contracts.artifacts import (
+    BrandTrackSummaryRow,
+    OverlayDisplayPayload,
+    OverlayFramePayload,
+    OverlayObjectPayload,
+    OverlayPayload,
+    OverlayVideoPayload,
+    TrackCsvRow,
+)
 
 
 class ApplicationDTO(BaseModel):
@@ -33,7 +42,7 @@ class PipelineArtifactDTO(ApplicationDTO):
 class PipelineRunEventDTO(ApplicationDTO):
     id: str
     run_id: str
-    stage: PipelineRunStage | str
+    stage: PipelineRunStage
     progress: int = Field(ge=0, le=100)
     message: str | None
     created_at: datetime | None
@@ -46,7 +55,7 @@ class PipelineRunDTO(ApplicationDTO):
     source_content_type: str | None
     source_size_bytes: int
     status: PipelineRunStatus
-    stage: PipelineRunStage | str
+    stage: PipelineRunStage
     progress: int = Field(ge=0, le=100)
     status_message: str | None
     error_code: str | None
@@ -89,18 +98,8 @@ class PlaybackDTO(ApplicationDTO):
     annotated_url: str | None
 
 
-class BrandSummaryDTO(ApplicationDTO):
-    brand: str | None = None
-    object_count: int = 0
-    track_fragment_count: int | None = None
-    mean_track_final_score: float | None = None
-    mean_video_visibility_score: float | None = None
-    sum_video_visibility_score: float | None = None
-    video_visibility_weighted_seconds: float | None = None
-    mean_final_brand_conf: float | None = None
-    max_final_brand_conf: float | None = None
-    first_timestamp_sec: float | None = None
-    last_timestamp_sec: float | None = None
+class BrandSummaryDTO(BrandTrackSummaryRow):
+    pass
 
 
 class RunSummaryTotalsDTO(ApplicationDTO):
@@ -114,41 +113,7 @@ class RunSummaryDTO(ApplicationDTO):
     brands: list[BrandSummaryDTO]
 
 
-class RunObjectDTO(ApplicationDTO):
-    run_id: str
-    source_path: str
-    track_id: int
-    object_id: int
-    first_frame_index: int
-    last_frame_index: int
-    first_timestamp_sec: float
-    last_timestamp_sec: float
-    visible_duration_sec: float
-    detections_count: int
-    classified_crops_count: int
-    best_crop_path: str
-    best_frame_index: int
-    best_timestamp_sec: float
-    mean_det_conf: float
-    max_det_conf: float
-    mean_crop_quality_score: float
-    best_crop_quality_score: float
-    max_area_ratio: float
-    mean_area_ratio: float
-    sum_area_ratio: float
-    mean_position_weight: float
-    mean_video_visibility_score: float
-    sum_video_visibility_score: float
-    video_visibility_weighted_seconds: float
-    final_brand: str
-    final_brand_conf: float
-    final_status: str
-    business_brand: str
-    business_visible: bool
-    final_status_reason: str
-    track_confirmed: bool
-    track_final_score: float
-    manual_review_required: bool
+class RunObjectDTO(TrackCsvRow):
     crop_url: str | None = None
 
 
@@ -170,43 +135,21 @@ class RunTimelineDTO(ApplicationDTO):
     points: list[RunTimelinePointDTO]
 
 
-class OverlayVideoDTO(ApplicationDTO):
-    source: str
-    width: int
-    height: int
-    fps: float
-    frame_count: int
-    frame_stride: int
+class OverlayVideoDTO(OverlayVideoPayload):
+    pass
 
 
-class OverlayDisplayDTO(ApplicationDTO):
-    max_cards_per_frame: int
-    fields: list[str]
+class OverlayDisplayDTO(OverlayDisplayPayload):
+    pass
 
 
-class OverlayObjectDTO(ApplicationDTO):
-    object_id: int | None
-    track_id: int | None
-    brand: str
-    label: str
-    color: str
-    bbox: tuple[float, float, float, float]
-    det_conf: float
-    brand_conf: float
-    area_ratio: float
-    visibility_score: float
-    overall_score: float
-    card_priority: float
+class OverlayObjectDTO(OverlayObjectPayload):
+    pass
 
 
-class OverlayFrameDTO(ApplicationDTO):
-    frame_index: int
-    timestamp_sec: float
-    objects: list[OverlayObjectDTO]
+class OverlayFrameDTO(OverlayFramePayload):
+    pass
 
 
-class OverlayPayloadDTO(ApplicationDTO):
-    version: int
-    video: OverlayVideoDTO
-    display: OverlayDisplayDTO
-    frames: list[OverlayFrameDTO]
+class OverlayPayloadDTO(OverlayPayload):
+    pass

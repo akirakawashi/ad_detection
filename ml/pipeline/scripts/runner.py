@@ -8,6 +8,8 @@ from math import ceil
 from pathlib import Path
 from typing import Any, Protocol
 
+from pipeline_contracts.pipeline import PipelineRunStage
+
 from .aggregation import apply_track_results, build_tracks
 from .classification import BrandClassifier, classify_detections, load_classifier
 from .config import PipelineConfig
@@ -30,7 +32,7 @@ logger = logging.getLogger(__name__)
 class PipelineProgressReporter(Protocol):
     def update(
         self,
-        stage: str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None = None,
     ) -> None: ...
@@ -39,7 +41,7 @@ class PipelineProgressReporter(Protocol):
 class LoggingProgressReporter:
     def update(
         self,
-        stage: str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None = None,
     ) -> None:
@@ -95,7 +97,7 @@ def run_pipeline(
     config.output_dir.mkdir(parents=True, exist_ok=True)
     log_run_configuration(config)
     reporter = progress_reporter or LoggingProgressReporter()
-    reporter.update("preparing", 1, "Готовим видео и модели к анализу")
+    reporter.update(PipelineRunStage.PREPARING, 1, "Готовим видео и модели к анализу")
 
     active_models = models or load_pipeline_models(
         config,
@@ -108,17 +110,21 @@ def run_pipeline(
     )
     logger.info("detections after gate: %s", len(context.detections))
 
-    reporter.update("tracking", 66, "Объединяем находки в объекты")
+    reporter.update(PipelineRunStage.TRACKING, 66, "Объединяем находки в объекты")
     run_tracking_stage(context)
-    reporter.update("classification", 71, "Определяем бренды по лучшим фрагментам")
+    reporter.update(
+        PipelineRunStage.CLASSIFICATION,
+        71,
+        "Определяем бренды по лучшим фрагментам",
+    )
     run_classification_stage(context, active_models)
-    reporter.update("aggregation", 83, "Считаем итоговые метрики")
+    reporter.update(PipelineRunStage.AGGREGATION, 83, "Считаем итоговые метрики")
     run_final_aggregation_stage(context)
     run_business_rules_stage(context)
-    reporter.update("rendering", 88, "Готовим видео с разметкой и отчёты")
+    reporter.update(PipelineRunStage.RENDERING, 88, "Готовим видео с разметкой и отчёты")
     write_artifacts_stage(context)
     reporter.update(
-        "uploading_artifacts",
+        PipelineRunStage.UPLOADING_ARTIFACTS,
         96,
         "Файлы результата готовы к сохранению",
     )
@@ -181,7 +187,7 @@ def run_detection_stage(
     evaluate_crop_quality(detections, config)
     if progress_reporter:
         progress_reporter.update(
-            "detection",
+            PipelineRunStage.DETECTION,
             65,
             "Изображение проанализировано",
         )
@@ -328,7 +334,7 @@ def run_video_detection_stream(
                 63 * min(1.0, processed_frames / sampled_frame_count)
             )
             progress_reporter.update(
-                "detection",
+                PipelineRunStage.DETECTION,
                 detection_progress,
                 (
                     f"Проверено кадров: {processed_frames}"
@@ -352,7 +358,7 @@ def run_video_detection_stream(
     )
     if progress_reporter:
         progress_reporter.update(
-            "detection",
+            PipelineRunStage.DETECTION,
             65,
             f"Проверено кадров: {processed_frames}",
         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import BinaryIO, Protocol
+from typing import Protocol
 
 from application.common.dto import PipelineArtifactDTO, PipelineRunDTO
 from domain.entities import PipelineArtifactType, PipelineRunStage, PipelineRunStatus
@@ -11,9 +11,7 @@ class ObjectStat(Protocol):
     size: int
 
 
-class ObjectStorage(Protocol):
-    def ensure_bucket(self) -> None: ...
-
+class RunObjectStorage(Protocol):
     def presigned_put(
         self,
         object_key: str,
@@ -30,6 +28,14 @@ class ObjectStorage(Protocol):
 
     def stat(self, object_key: str) -> ObjectStat: ...
 
+    def read_bytes(self, object_key: str) -> bytes: ...
+
+    def read_text(self, object_key: str) -> str: ...
+
+
+class WorkerObjectStorage(Protocol):
+    def ensure_bucket(self) -> None: ...
+
     def download_file(self, object_key: str, destination: Path) -> None: ...
 
     def upload_file(
@@ -40,26 +46,9 @@ class ObjectStorage(Protocol):
         content_type: str | None = None,
     ) -> object: ...
 
-    def put_stream(
-        self,
-        object_key: str,
-        stream: BinaryIO,
-        *,
-        length: int,
-        content_type: str,
-    ) -> object: ...
 
-    def read_bytes(self, object_key: str) -> bytes: ...
-
-    def read_text(self, object_key: str) -> str: ...
-
-    def put_bytes(
-        self,
-        object_key: str,
-        value: bytes,
-        *,
-        content_type: str,
-    ) -> object: ...
+class ObjectStorage(RunObjectStorage, WorkerObjectStorage, Protocol):
+    pass
 
 
 class PipelineRunRepository(Protocol):
@@ -78,7 +67,7 @@ class PipelineRunRepository(Protocol):
         *,
         page: int,
         page_size: int,
-        status: PipelineRunStatus | str | None = None,
+        status: PipelineRunStatus | None = None,
     ) -> tuple[list[PipelineRunDTO], int]: ...
 
     def get(
@@ -112,7 +101,7 @@ class PipelineRunRepository(Protocol):
         self,
         run_id: str,
         *,
-        stage: PipelineRunStage | str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None,
         create_event: bool = False,

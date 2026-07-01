@@ -19,12 +19,12 @@ from infrastructure.database.models import (
 )
 
 
-def _status_value(status: PipelineRunStatus | str) -> str:
-    return status.value if isinstance(status, PipelineRunStatus) else status
+def _status_value(status: PipelineRunStatus) -> str:
+    return status.value
 
 
-def _stage_value(stage: PipelineRunStage | str) -> str:
-    return stage.value if isinstance(stage, PipelineRunStage) else stage
+def _stage_value(stage: PipelineRunStage) -> str:
+    return stage.value
 
 
 def _artifact_type(artifact_type: str) -> PipelineArtifactType:
@@ -38,11 +38,8 @@ def _status(status: str) -> PipelineRunStatus:
     return PipelineRunStatus(status)
 
 
-def _stage(stage: str) -> PipelineRunStage | str:
-    try:
-        return PipelineRunStage(stage)
-    except ValueError:
-        return stage
+def _stage(stage: str) -> PipelineRunStage:
+    return PipelineRunStage(stage)
 
 
 def _artifact_to_dto(artifact: PipelineArtifact) -> PipelineArtifactDTO:
@@ -137,7 +134,7 @@ class SqlPipelineRunRepository:
         *,
         page: int,
         page_size: int,
-        status: PipelineRunStatus | str | None = None,
+        status: PipelineRunStatus | None = None,
     ) -> tuple[list[PipelineRunDTO], int]:
         filters = []
         if status:
@@ -222,7 +219,7 @@ class SqlPipelineRunRepository:
         self,
         run_id: str,
         *,
-        stage: PipelineRunStage | str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None,
     ) -> None:
@@ -256,7 +253,7 @@ class SqlPipelineRunRepository:
         run.started_at = datetime.now(timezone.utc)
         self.add_event(
             run.pipeline_runs_id,
-            stage=run.stage,
+            stage=PipelineRunStage.PREPARING,
             progress=run.progress,
             message=run.status_message,
         )
@@ -267,7 +264,7 @@ class SqlPipelineRunRepository:
         self,
         run_id: str,
         *,
-        stage: PipelineRunStage | str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None,
         create_event: bool = False,

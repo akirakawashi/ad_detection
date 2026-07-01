@@ -1,7 +1,3 @@
-"""Compatibility facade for shared public artifact contracts."""
-
-from __future__ import annotations
-
 from pipeline_contracts.artifacts import (
     BRAND_DETECTION_SUMMARY_FIELDS,
     BRAND_TRACK_SUMMARY_FIELDS,
@@ -21,17 +17,45 @@ from pipeline_contracts.artifacts import (
     OverlayVideoPayload,
     TrackCsvRow,
 )
+from pipeline_contracts.domain import (
+    IGNORE_BRAND,
+    OTHER_BRAND,
+    TARGET_BRANDS,
+    VALID_OVERRIDE_BRANDS,
+    BrandStatus,
+    ClassificationInputStatus,
+    CropQualityStatus,
+    FinalStatus,
+    normalize_brand_name,
+)
+from pipeline_contracts.pipeline import (
+    PIPELINE_ARTIFACT_TYPES_BY_FILE_NAME,
+    PipelineArtifactType,
+    PipelineRunStage,
+    PipelineRunStatus,
+    artifact_type_for_path,
+    should_register_artifact,
+)
 
 __all__ = [
     "BRAND_DETECTION_SUMMARY_FIELDS",
     "BRAND_TRACK_SUMMARY_FIELDS",
     "DETECTION_CSV_FIELDS",
     "FRAME_SUMMARY_FIELDS",
+    "IGNORE_BRAND",
+    "OTHER_BRAND",
+    "PIPELINE_ARTIFACT_TYPES_BY_FILE_NAME",
+    "TARGET_BRANDS",
     "TRACK_CSV_FIELDS",
+    "VALID_OVERRIDE_BRANDS",
     "ArtifactModel",
     "BrandDetectionSummaryRow",
+    "BrandStatus",
     "BrandTrackSummaryRow",
+    "ClassificationInputStatus",
+    "CropQualityStatus",
     "DetectionCsvRow",
+    "FinalStatus",
     "FrameSummaryRow",
     "InputMetadataJson",
     "OverlayDisplayPayload",
@@ -39,5 +63,11 @@ __all__ = [
     "OverlayObjectPayload",
     "OverlayPayload",
     "OverlayVideoPayload",
+    "PipelineArtifactType",
+    "PipelineRunStage",
+    "PipelineRunStatus",
     "TrackCsvRow",
+    "artifact_type_for_path",
+    "normalize_brand_name",
+    "should_register_artifact",
 ]

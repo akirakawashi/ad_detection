@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from application.interfaces import PipelineRunRepository
+from domain.entities import PipelineRunStage
 from ml.pipeline.scripts.runner import PipelineProgressReporter
 
 
@@ -17,13 +18,13 @@ class DatabaseProgressReporter(PipelineProgressReporter):
 
     def update(
         self,
-        stage: str,
+        stage: PipelineRunStage,
         progress: int,
         message: str | None = None,
     ) -> None:
         normalized = max(0, min(99, progress))
         create_event = (
-            stage != self._last_stage or normalized - self._last_progress >= 10
+            stage.value != self._last_stage or normalized - self._last_progress >= 10
         )
         self._repository.update_progress(
             self._run_id,
@@ -33,5 +34,5 @@ class DatabaseProgressReporter(PipelineProgressReporter):
             create_event=create_event,
         )
         self._repository.commit()
-        self._last_stage = stage
+        self._last_stage = stage.value
         self._last_progress = normalized

@@ -9,8 +9,12 @@ import time
 import traceback
 from pathlib import Path
 
-from application.interfaces import PipelineRunRepository
-from domain.entities import artifact_type_for_path, should_register_artifact
+from application.interfaces import PipelineRunRepository, WorkerObjectStorage
+from domain.entities import (
+    PipelineRunStage,
+    artifact_type_for_path,
+    should_register_artifact,
+)
 from infrastructure.database.session import create_session
 from infrastructure.repositories.sql_pipeline_run_repository import (
     SqlPipelineRunRepository,
@@ -32,7 +36,7 @@ logger = logging.getLogger("pipeline-worker")
 class PipelineWorker:
     def __init__(self) -> None:
         self._config = get_settings()
-        self._storage = MinioStorage(self._config.object_storage)
+        self._storage: WorkerObjectStorage = MinioStorage(self._config.object_storage)
         self._worker_id = f"{socket.gethostname()}:{os.getpid()}"
         self._models: PipelineModels | None = None
 
@@ -69,7 +73,7 @@ class PipelineWorker:
                 output_path.mkdir(parents=True, exist_ok=True)
 
                 reporter.update(
-                    "preparing",
+                    PipelineRunStage.PREPARING,
                     1,
                     "Загружаем исходное видео для анализа",
                 )
@@ -101,7 +105,7 @@ class PipelineWorker:
                 )
 
                 reporter.update(
-                    "uploading_artifacts",
+                    PipelineRunStage.UPLOADING_ARTIFACTS,
                     96,
                     "Сохраняем результаты анализа",
                 )

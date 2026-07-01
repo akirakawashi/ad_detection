@@ -12,7 +12,16 @@ from ..schemas import InputMetadata
 
 
 def write_input_meta(path: Path, metadata: InputMetadata) -> None:
-    row = InputMetadataJson.from_metadata(metadata).model_dump(mode="json")
+    row = InputMetadataJson(
+        source_path=str(metadata.source_path),
+        input_type=metadata.input_type,
+        fps=metadata.fps,
+        frame_count=metadata.frame_count,
+        frame_stride=metadata.frame_stride,
+        delta_t_sec=metadata.delta_t_sec,
+        width=metadata.width,
+        height=metadata.height,
+    ).model_dump(mode="json")
     with path.open("w", encoding="utf-8") as handle:
         json.dump(row, handle, ensure_ascii=False, indent=2)
         handle.write("\n")

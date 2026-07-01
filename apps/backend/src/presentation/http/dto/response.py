@@ -5,6 +5,19 @@ from typing import Generic, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from application.common.dto import (
+    ArtifactUrlDTO,
+    BrandSummaryDTO,
+    OverlayDisplayDTO,
+    OverlayFrameDTO,
+    OverlayObjectDTO,
+    OverlayPayloadDTO,
+    OverlayVideoDTO,
+    PlaybackDTO,
+    RunObjectDTO,
+    RunSummaryTotalsDTO,
+    RunTimelinePointDTO,
+)
 from domain.entities import PipelineArtifactType, PipelineRunStage, PipelineRunStatus
 
 
@@ -55,7 +68,7 @@ class RunArtifactResponse(ApiModel):
 
 class RunEventResponse(ApiModel):
     id: str = Field(validation_alias=AliasChoices("id", "pipeline_run_events_id"))
-    stage: PipelineRunStage | str
+    stage: PipelineRunStage
     progress: int
     message: str | None
     created_at: datetime | None
@@ -67,7 +80,7 @@ class PipelineRunResponse(ApiModel):
     source_content_type: str | None
     source_size_bytes: int
     status: PipelineRunStatus
-    stage: PipelineRunStage | str
+    stage: PipelineRunStage
     progress: int
     status_message: str | None
     error_code: str | None
@@ -94,23 +107,12 @@ class PaginatedRunsResponse(ApiModel):
     total: int
 
 
-class BrandSummaryResponse(ApiModel):
-    brand: str | None = None
-    object_count: int = 0
-    track_fragment_count: int | None = None
-    mean_track_final_score: float | None = None
-    mean_video_visibility_score: float | None = None
-    sum_video_visibility_score: float | None = None
-    video_visibility_weighted_seconds: float | None = None
-    mean_final_brand_conf: float | None = None
-    max_final_brand_conf: float | None = None
-    first_timestamp_sec: float | None = None
-    last_timestamp_sec: float | None = None
+class BrandSummaryResponse(BrandSummaryDTO):
+    pass
 
 
-class RunSummaryTotalsResponse(ApiModel):
-    total_objects: int
-    visibility_index: float
+class RunSummaryTotalsResponse(RunSummaryTotalsDTO):
+    pass
 
 
 class RunSummaryResponse(ApiModel):
@@ -119,42 +121,8 @@ class RunSummaryResponse(ApiModel):
     brands: list[BrandSummaryResponse]
 
 
-class RunObjectResponse(ApiModel):
-    run_id: str
-    source_path: str
-    track_id: int
-    object_id: int
-    first_frame_index: int
-    last_frame_index: int
-    first_timestamp_sec: float
-    last_timestamp_sec: float
-    visible_duration_sec: float
-    detections_count: int
-    classified_crops_count: int
-    best_crop_path: str
-    best_frame_index: int
-    best_timestamp_sec: float
-    mean_det_conf: float
-    max_det_conf: float
-    mean_crop_quality_score: float
-    best_crop_quality_score: float
-    max_area_ratio: float
-    mean_area_ratio: float
-    sum_area_ratio: float
-    mean_position_weight: float
-    mean_video_visibility_score: float
-    sum_video_visibility_score: float
-    video_visibility_weighted_seconds: float
-    final_brand: str
-    final_brand_conf: float
-    final_status: str
-    business_brand: str
-    business_visible: bool
-    final_status_reason: str
-    track_confirmed: bool
-    track_final_score: float
-    manual_review_required: bool
-    crop_url: str | None = None
+class RunObjectResponse(RunObjectDTO):
+    pass
 
 
 class RunObjectsResponse(ApiModel):
@@ -162,11 +130,8 @@ class RunObjectsResponse(ApiModel):
     objects: list[RunObjectResponse]
 
 
-class RunTimelinePointResponse(ApiModel):
-    bucket_start_sec: float
-    business_brand: str | None
-    detection_count: int
-    visibility_score: float
+class RunTimelinePointResponse(RunTimelinePointDTO):
+    pass
 
 
 class RunTimelineResponse(ApiModel):
@@ -175,53 +140,29 @@ class RunTimelineResponse(ApiModel):
     points: list[RunTimelinePointResponse]
 
 
-class ArtifactUrlResponse(ApiModel):
-    artifact_id: str
-    url: str
+class ArtifactUrlResponse(ArtifactUrlDTO):
+    pass
 
 
-class PlaybackResponse(ApiModel):
-    source_url: str | None
-    annotated_url: str | None
+class PlaybackResponse(PlaybackDTO):
+    pass
 
 
-class OverlayVideoResponse(ApiModel):
-    source: str
-    width: int
-    height: int
-    fps: float
-    frame_count: int
-    frame_stride: int
+class OverlayVideoResponse(OverlayVideoDTO):
+    pass
 
 
-class OverlayDisplayResponse(ApiModel):
-    max_cards_per_frame: int
-    fields: list[str]
+class OverlayDisplayResponse(OverlayDisplayDTO):
+    pass
 
 
-class OverlayObjectResponse(ApiModel):
-    object_id: int | None
-    track_id: int | None
-    brand: str
-    label: str
-    color: str
-    bbox: tuple[float, float, float, float]
-    det_conf: float
-    brand_conf: float
-    area_ratio: float
-    visibility_score: float
-    overall_score: float
-    card_priority: float
+class OverlayObjectResponse(OverlayObjectDTO):
+    pass
 
 
-class OverlayFrameResponse(ApiModel):
-    frame_index: int
-    timestamp_sec: float
-    objects: list[OverlayObjectResponse]
+class OverlayFrameResponse(OverlayFrameDTO):
+    pass
 
 
-class OverlayPayloadResponse(ApiModel):
-    version: int
-    video: OverlayVideoResponse
-    display: OverlayDisplayResponse
-    frames: list[OverlayFrameResponse]
+class OverlayPayloadResponse(OverlayPayloadDTO):
+    pass
