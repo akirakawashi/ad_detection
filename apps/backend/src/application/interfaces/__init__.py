@@ -1,6 +1,5 @@
 from application.interfaces.pipeline import (
     ObjectStat,
-    ObjectStorage,
     PipelineRunRepository,
     RunObjectStorage,
     WorkerObjectStorage,
@@ -8,7 +7,6 @@ from application.interfaces.pipeline import (
 
 __all__ = [
     "ObjectStat",
-    "ObjectStorage",
     "PipelineRunRepository",
     "RunObjectStorage",
     "WorkerObjectStorage",

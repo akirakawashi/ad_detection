@@ -47,10 +47,6 @@ class WorkerObjectStorage(Protocol):
     ) -> object: ...
 
 
-class ObjectStorage(RunObjectStorage, WorkerObjectStorage, Protocol):
-    pass
-
-
 class PipelineRunRepository(Protocol):
     def create(
         self,

@@ -8,11 +8,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from application.common.dto import (
     ArtifactUrlDTO,
     BrandSummaryDTO,
-    OverlayDisplayDTO,
-    OverlayFrameDTO,
-    OverlayObjectDTO,
     OverlayPayloadDTO,
-    OverlayVideoDTO,
     PlaybackDTO,
     RunObjectDTO,
     RunSummaryTotalsDTO,
@@ -33,10 +29,6 @@ class ApiModel(BaseModel):
 
 class OkResponse(ApiModel, Generic[T]):
     data: T
-
-
-class ErrorResponse(ApiModel):
-    detail: str
 
 
 class UploadTargetResponse(ApiModel):
@@ -145,22 +137,6 @@ class ArtifactUrlResponse(ArtifactUrlDTO):
 
 
 class PlaybackResponse(PlaybackDTO):
-    pass
-
-
-class OverlayVideoResponse(OverlayVideoDTO):
-    pass
-
-
-class OverlayDisplayResponse(OverlayDisplayDTO):
-    pass
-
-
-class OverlayObjectResponse(OverlayObjectDTO):
-    pass
-
-
-class OverlayFrameResponse(OverlayFrameDTO):
     pass
 
 

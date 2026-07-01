@@ -13,6 +13,7 @@ x-backend-service: &backend-service
     PYTHONPATH: /app/apps/backend/src:/app
     WATCHFILES_FORCE_POLLING: "true"
   volumes:
+    - ./pipeline_contracts:/app/pipeline_contracts:ro
     - ./apps/backend/src:/app/apps/backend/src:ro
     - ./apps/backend/alembic:/app/apps/backend/alembic:ro
     - ./apps/backend/alembic.ini:/app/apps/backend/alembic.ini:ro

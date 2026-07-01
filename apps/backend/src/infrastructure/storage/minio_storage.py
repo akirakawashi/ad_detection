@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import io
 import mimetypes
 from datetime import timedelta
 from pathlib import Path
-from typing import BinaryIO
 
 from minio import Minio
 from minio.datatypes import Object
@@ -100,22 +98,6 @@ class MinioStorage:
             content_type=resolved_content_type,
         )
 
-    def put_stream(
-        self,
-        object_key: str,
-        stream: BinaryIO,
-        *,
-        length: int,
-        content_type: str,
-    ) -> ObjectWriteResult:
-        return self._internal.put_object(
-            self.bucket,
-            object_key,
-            stream,
-            length=length,
-            content_type=content_type,
-        )
-
     def read_bytes(self, object_key: str) -> bytes:
         response = self._internal.get_object(self.bucket, object_key)
         try:
@@ -126,17 +108,3 @@ class MinioStorage:
 
     def read_text(self, object_key: str) -> str:
         return self.read_bytes(object_key).decode("utf-8")
-
-    def put_bytes(
-        self,
-        object_key: str,
-        value: bytes,
-        *,
-        content_type: str,
-    ) -> ObjectWriteResult:
-        return self.put_stream(
-            object_key,
-            io.BytesIO(value),
-            length=len(value),
-            content_type=content_type,
-        )

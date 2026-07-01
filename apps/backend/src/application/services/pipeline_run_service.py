@@ -365,7 +365,7 @@ class PipelineRunService:
         if not value:
             return pd.DataFrame()
         try:
-            return pd.read_csv(io.BytesIO(value))
+            return pd.read_csv(io.BytesIO(value), keep_default_na=False)
         except EmptyDataError:
             return pd.DataFrame()
 
