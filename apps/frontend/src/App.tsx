@@ -8,7 +8,6 @@ import { UploadPage } from './pages/UploadPage'
 import {
   currentRoute,
   navigate,
-  workspaceTitle,
   type Route,
 } from './routing'
 import './App.css'
@@ -58,11 +57,6 @@ function App() {
         <header className="workspace-header">
           <div className="workspace-header-inner">
             <div className="topbar-left">
-              {route.page !== 'runs' && route.page !== 'home' && (
-                <button className="back-button" onClick={() => navigate('/runs')}>
-                  ‹ Назад
-                </button>
-              )}
               <button
                 className="topbar-logo"
                 onClick={() => navigate('/')}
@@ -70,10 +64,6 @@ function App() {
               >
                 <img src={logoUrl} alt="АИСИ ГРУПП" />
               </button>
-              <div className="topbar-title">
-                <span>Аналитика рекламы</span>
-                <strong>{workspaceTitle(route)}</strong>
-              </div>
             </div>
             <div className="topbar-status">
               <span />
@@ -82,6 +72,13 @@ function App() {
           </div>
         </header>
         <main className="workspace-main">
+          {route.page !== 'runs' && route.page !== 'home' && (
+            <div className="workspace-backline">
+              <button className="workspace-backlink" onClick={() => navigate('/runs')}>
+                ← Назад к архиву
+              </button>
+            </div>
+          )}
           {route.page === 'home' && <LandingPage />}
           {route.page === 'runs' && <RunsPage />}
           {route.page === 'new' && <UploadPage />}
