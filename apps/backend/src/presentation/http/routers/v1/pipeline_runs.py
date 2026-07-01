@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Depends, Path, Query
 
 from application.services.pipeline_run_service import PipelineRunService
@@ -11,6 +9,7 @@ from presentation.http.dto.response import (
     CreateRunRequest,
     CreateRunResponse,
     OkResponse,
+    OverlayPayloadResponse,
     PaginatedRunsResponse,
     PipelineRunResponse,
     PlaybackResponse,
@@ -134,13 +133,15 @@ def get_run_timeline(
 
 @router.get(
     "/{run_id}/overlay",
-    response_model=OkResponse[dict[str, Any]],
+    response_model=OkResponse[OverlayPayloadResponse],
 )
 def get_run_overlay(
     run_id: str = Path(description="Pipeline run id"),
     service: PipelineRunService = Depends(get_run_service),
-) -> OkResponse[dict[str, Any]]:
-    return OkResponse(data=service.get_overlay(run_id))
+) -> OkResponse[OverlayPayloadResponse]:
+    return OkResponse(
+        data=OverlayPayloadResponse.model_validate(service.get_overlay(run_id))
+    )
 
 
 @router.get(

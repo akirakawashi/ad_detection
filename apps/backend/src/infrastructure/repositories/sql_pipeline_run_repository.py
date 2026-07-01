@@ -6,11 +6,95 @@ from sqlalchemy import func
 from sqlalchemy.orm import noload, selectinload
 from sqlmodel import Session, select
 
+from application.common.dto import (
+    PipelineArtifactDTO,
+    PipelineRunDTO,
+    PipelineRunEventDTO,
+)
+from domain.entities import PipelineArtifactType, PipelineRunStage, PipelineRunStatus
 from infrastructure.database.models import (
     PipelineArtifact,
     PipelineRun,
     PipelineRunEvent,
 )
+
+
+def _status_value(status: PipelineRunStatus | str) -> str:
+    return status.value if isinstance(status, PipelineRunStatus) else status
+
+
+def _stage_value(stage: PipelineRunStage | str) -> str:
+    return stage.value if isinstance(stage, PipelineRunStage) else stage
+
+
+def _artifact_type(artifact_type: str) -> PipelineArtifactType:
+    try:
+        return PipelineArtifactType(artifact_type)
+    except ValueError:
+        return PipelineArtifactType.ARTIFACT
+
+
+def _status(status: str) -> PipelineRunStatus:
+    return PipelineRunStatus(status)
+
+
+def _stage(stage: str) -> PipelineRunStage | str:
+    try:
+        return PipelineRunStage(stage)
+    except ValueError:
+        return stage
+
+
+def _artifact_to_dto(artifact: PipelineArtifact) -> PipelineArtifactDTO:
+    return PipelineArtifactDTO(
+        id=artifact.pipeline_artifacts_id,
+        run_id=artifact.pipeline_runs_id,
+        artifact_type=_artifact_type(artifact.artifact_type),
+        object_key=artifact.object_key,
+        content_type=artifact.content_type,
+        size_bytes=artifact.size_bytes,
+        created_at=artifact.created_at,
+    )
+
+
+def _event_to_dto(event: PipelineRunEvent) -> PipelineRunEventDTO:
+    return PipelineRunEventDTO(
+        id=event.pipeline_run_events_id,
+        run_id=event.pipeline_runs_id,
+        stage=_stage(event.stage),
+        progress=event.progress,
+        message=event.message,
+        created_at=event.created_at,
+    )
+
+
+def _run_to_dto(run: PipelineRun) -> PipelineRunDTO:
+    return PipelineRunDTO(
+        run_id=run.pipeline_runs_id,
+        source_name=run.source_name,
+        source_object_key=run.source_object_key,
+        source_content_type=run.source_content_type,
+        source_size_bytes=run.source_size_bytes,
+        status=_status(run.status),
+        stage=_stage(run.stage),
+        progress=run.progress,
+        status_message=run.status_message,
+        error_code=run.error_code,
+        error_message=run.error_message,
+        fps=run.fps,
+        frame_count=run.frame_count,
+        frame_stride=run.frame_stride,
+        duration_sec=run.duration_sec,
+        width=run.width,
+        height=run.height,
+        created_at=run.created_at,
+        upload_completed_at=run.upload_completed_at,
+        started_at=run.started_at,
+        completed_at=run.completed_at,
+        updated_at=run.updated_at,
+        artifacts=[_artifact_to_dto(item) for item in run.artifacts],
+        events=[_event_to_dto(item) for item in run.events],
+    )
 
 
 class SqlPipelineRunRepository:
@@ -25,15 +109,15 @@ class SqlPipelineRunRepository:
         source_object_key: str,
         content_type: str | None,
         size_bytes: int,
-    ) -> PipelineRun:
+    ) -> PipelineRunDTO:
         run = PipelineRun(
             pipeline_runs_id=run_id,
             source_name=source_name,
             source_object_key=source_object_key,
             source_content_type=content_type,
             source_size_bytes=size_bytes,
-            status="uploading",
-            stage="upload",
+            status=PipelineRunStatus.UPLOADING.value,
+            stage=PipelineRunStage.UPLOAD.value,
             progress=0,
             status_message="Ждём загрузку видео",
         )
@@ -41,24 +125,23 @@ class SqlPipelineRunRepository:
         self._session.flush()
         self.add_event(
             run.pipeline_runs_id,
-            stage="upload",
+            stage=PipelineRunStage.UPLOAD,
             progress=0,
             message="Обработка создана",
         )
-        self._session.commit()
-        self._session.refresh(run)
-        return run
+        self._session.flush()
+        return _run_to_dto(run)
 
     def list_runs(
         self,
         *,
         page: int,
         page_size: int,
-        status: str | None = None,
-    ) -> tuple[list[PipelineRun], int]:
+        status: PipelineRunStatus | str | None = None,
+    ) -> tuple[list[PipelineRunDTO], int]:
         filters = []
         if status:
-            filters.append(PipelineRun.status == status)
+            filters.append(PipelineRun.status == _status_value(status))
 
         total = self._session.exec(
             select(func.count(PipelineRun.pipeline_runs_id)).where(*filters)
@@ -75,9 +158,198 @@ class SqlPipelineRunRepository:
             .limit(page_size)
         )
         runs = self._session.exec(statement).all()
-        return list(runs), int(total)
+        return [_run_to_dto(run) for run in runs], int(total)
 
     def get(
+        self,
+        run_id: str,
+        *,
+        with_artifacts: bool = True,
+        with_events: bool = False,
+    ) -> PipelineRunDTO | None:
+        run = self._get_model(
+            run_id,
+            with_artifacts=with_artifacts,
+            with_events=with_events,
+        )
+        return _run_to_dto(run) if run else None
+
+    def mark_upload_complete(
+        self,
+        run_id: str,
+        *,
+        actual_size_bytes: int,
+    ) -> PipelineRunDTO | None:
+        run = self._get_model(run_id, with_artifacts=True)
+        if run is None:
+            return None
+        run.source_size_bytes = actual_size_bytes
+        run.status = PipelineRunStatus.QUEUED.value
+        run.stage = PipelineRunStage.QUEUED.value
+        run.progress = 0
+        run.status_message = "Видео загружено. Анализ скоро начнётся"
+        run.upload_completed_at = datetime.now(timezone.utc)
+        self.add_event(
+            run.pipeline_runs_id,
+            stage=PipelineRunStage.QUEUED,
+            progress=0,
+            message=run.status_message,
+        )
+        self._session.flush()
+        return _run_to_dto(run)
+
+    def add_artifact(
+        self,
+        *,
+        run_id: str,
+        artifact_type: PipelineArtifactType,
+        object_key: str,
+        content_type: str,
+        size_bytes: int,
+    ) -> PipelineArtifactDTO:
+        artifact = PipelineArtifact(
+            pipeline_runs_id=run_id,
+            artifact_type=artifact_type.value,
+            object_key=object_key,
+            content_type=content_type,
+            size_bytes=size_bytes,
+        )
+        self._session.add(artifact)
+        self._session.flush()
+        return _artifact_to_dto(artifact)
+
+    def add_event(
+        self,
+        run_id: str,
+        *,
+        stage: PipelineRunStage | str,
+        progress: int,
+        message: str | None,
+    ) -> None:
+        self._session.add(
+            PipelineRunEvent(
+                pipeline_runs_id=run_id,
+                stage=_stage_value(stage),
+                progress=progress,
+                message=message,
+            )
+        )
+
+    def claim_next(self, worker_id: str) -> PipelineRunDTO | None:
+        statement = (
+            select(PipelineRun)
+            .where(PipelineRun.status == PipelineRunStatus.QUEUED.value)
+            .order_by(PipelineRun.created_at)
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        run = self._session.exec(statement).first()
+        if run is None:
+            self._session.rollback()
+            return None
+
+        run.status = PipelineRunStatus.PROCESSING.value
+        run.stage = PipelineRunStage.PREPARING.value
+        run.progress = 1
+        run.status_message = "Готовим видео к анализу"
+        run.worker_id = worker_id
+        run.started_at = datetime.now(timezone.utc)
+        self.add_event(
+            run.pipeline_runs_id,
+            stage=run.stage,
+            progress=run.progress,
+            message=run.status_message,
+        )
+        self._session.flush()
+        return _run_to_dto(run)
+
+    def update_progress(
+        self,
+        run_id: str,
+        *,
+        stage: PipelineRunStage | str,
+        progress: int,
+        message: str | None,
+        create_event: bool = False,
+    ) -> None:
+        run = self._get_model(run_id, with_artifacts=False)
+        if run is None:
+            return
+        run.stage = _stage_value(stage)
+        run.progress = max(0, min(100, progress))
+        run.status_message = message
+        if create_event:
+            self.add_event(
+                run_id,
+                stage=stage,
+                progress=run.progress,
+                message=message,
+            )
+        self._session.flush()
+
+    def mark_completed(
+        self,
+        run_id: str,
+        *,
+        fps: float,
+        frame_count: int,
+        frame_stride: int,
+        width: int,
+        height: int,
+    ) -> None:
+        run = self._get_model(run_id, with_artifacts=False)
+        if run is None:
+            return
+        run.status = PipelineRunStatus.COMPLETED.value
+        run.stage = PipelineRunStage.COMPLETED.value
+        run.progress = 100
+        run.status_message = "Анализ готов"
+        run.fps = fps
+        run.frame_count = frame_count
+        run.frame_stride = frame_stride
+        run.duration_sec = frame_count / fps if fps > 0 and frame_count > 0 else None
+        run.width = width
+        run.height = height
+        run.completed_at = datetime.now(timezone.utc)
+        self.add_event(
+            run_id,
+            stage=PipelineRunStage.COMPLETED,
+            progress=100,
+            message=run.status_message,
+        )
+        self._session.flush()
+
+    def mark_failed(
+        self,
+        run_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        run = self._get_model(run_id, with_artifacts=False)
+        if run is None:
+            return
+        run.status = PipelineRunStatus.PROCESSING_FAILED.value
+        run.stage = PipelineRunStage.FAILED.value
+        run.status_message = "Анализ остановился с ошибкой"
+        run.error_code = error_code
+        run.error_message = error_message
+        run.completed_at = datetime.now(timezone.utc)
+        self.add_event(
+            run_id,
+            stage=PipelineRunStage.FAILED,
+            progress=run.progress,
+            message=run.status_message,
+        )
+        self._session.flush()
+
+    def commit(self) -> None:
+        self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
+
+    def _get_model(
         self,
         run_id: str,
         *,
@@ -94,173 +366,3 @@ class SqlPipelineRunRepository:
         else:
             statement = statement.options(noload(PipelineRun.events))
         return self._session.exec(statement).one_or_none()
-
-    def mark_upload_complete(
-        self,
-        run: PipelineRun,
-        *,
-        actual_size_bytes: int,
-    ) -> None:
-        run.source_size_bytes = actual_size_bytes
-        run.status = "queued"
-        run.stage = "queued"
-        run.progress = 0
-        run.status_message = "Видео загружено. Анализ скоро начнётся"
-        run.upload_completed_at = datetime.now(timezone.utc)
-        self.add_event(
-            run.pipeline_runs_id,
-            stage="queued",
-            progress=0,
-            message=run.status_message,
-        )
-        self._session.commit()
-
-    def add_artifact(
-        self,
-        *,
-        run_id: str,
-        artifact_type: str,
-        object_key: str,
-        content_type: str,
-        size_bytes: int,
-    ) -> PipelineArtifact:
-        artifact = PipelineArtifact(
-            pipeline_runs_id=run_id,
-            artifact_type=artifact_type,
-            object_key=object_key,
-            content_type=content_type,
-            size_bytes=size_bytes,
-        )
-        self._session.add(artifact)
-        self._session.flush()
-        return artifact
-
-    def add_event(
-        self,
-        run_id: str,
-        *,
-        stage: str,
-        progress: int,
-        message: str | None,
-    ) -> None:
-        self._session.add(
-            PipelineRunEvent(
-                pipeline_runs_id=run_id,
-                stage=stage,
-                progress=progress,
-                message=message,
-            )
-        )
-
-    def commit(self) -> None:
-        self._session.commit()
-
-    def claim_next(self, worker_id: str) -> PipelineRun | None:
-        statement = (
-            select(PipelineRun)
-            .where(PipelineRun.status == "queued")
-            .order_by(PipelineRun.created_at)
-            .with_for_update(skip_locked=True)
-            .limit(1)
-        )
-        run = self._session.exec(statement).first()
-        if run is None:
-            self._session.rollback()
-            return None
-
-        run.status = "processing"
-        run.stage = "preparing"
-        run.progress = 1
-        run.status_message = "Готовим видео к анализу"
-        run.worker_id = worker_id
-        run.started_at = datetime.now(timezone.utc)
-        self.add_event(
-            run.pipeline_runs_id,
-            stage=run.stage,
-            progress=run.progress,
-            message=run.status_message,
-        )
-        self._session.commit()
-        self._session.refresh(run)
-        return run
-
-    def update_progress(
-        self,
-        run_id: str,
-        *,
-        stage: str,
-        progress: int,
-        message: str | None,
-        create_event: bool = False,
-    ) -> None:
-        run = self.get(run_id, with_artifacts=False)
-        if run is None:
-            return
-        run.stage = stage
-        run.progress = max(0, min(100, progress))
-        run.status_message = message
-        if create_event:
-            self.add_event(
-                run_id,
-                stage=stage,
-                progress=run.progress,
-                message=message,
-            )
-        self._session.commit()
-
-    def mark_completed(
-        self,
-        run_id: str,
-        *,
-        fps: float,
-        frame_count: int,
-        frame_stride: int,
-        width: int,
-        height: int,
-    ) -> None:
-        run = self.get(run_id, with_artifacts=False)
-        if run is None:
-            return
-        run.status = "completed"
-        run.stage = "completed"
-        run.progress = 100
-        run.status_message = "Анализ готов"
-        run.fps = fps
-        run.frame_count = frame_count
-        run.frame_stride = frame_stride
-        run.duration_sec = frame_count / fps if fps > 0 and frame_count > 0 else None
-        run.width = width
-        run.height = height
-        run.completed_at = datetime.now(timezone.utc)
-        self.add_event(
-            run_id,
-            stage="completed",
-            progress=100,
-            message=run.status_message,
-        )
-        self._session.commit()
-
-    def mark_failed(
-        self,
-        run_id: str,
-        *,
-        error_code: str,
-        error_message: str,
-    ) -> None:
-        self._session.rollback()
-        run = self.get(run_id, with_artifacts=False)
-        if run is None:
-            return
-        run.status = "processing_failed"
-        run.stage = "failed"
-        run.status_message = "Анализ остановился с ошибкой"
-        run.error_code = error_code
-        run.error_message = error_message
-        run.completed_at = datetime.now(timezone.utc)
-        self.add_event(
-            run_id,
-            stage="failed",
-            progress=run.progress,
-            message=run.status_message,
-        )
-        self._session.commit()

@@ -6,6 +6,12 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..artifacts import (
+    DETECTION_CSV_FIELDS,
+    TRACK_CSV_FIELDS,
+    DetectionCsvRow,
+    TrackCsvRow,
+)
 from ..schemas import DetectionRecord, InputMetadata, TrackRecord
 from .charts import write_charts
 from .csv_io import write_dict_csv, write_input_meta
@@ -23,10 +29,21 @@ def write_pipeline_outputs(
     write_input_meta(output_dir / "input_meta.json", metadata)
     detections_csv = output_dir / "detections.csv"
     tracks_csv = output_dir / "tracks.csv"
-    detection_rows = [detection.to_row() for detection in detections]
-    track_rows = [track.to_row() for track in tracks]
-    write_dict_csv(detections_csv, detection_rows)
-    write_dict_csv(tracks_csv, track_rows)
+    detection_rows = [
+        DetectionCsvRow.from_detection(detection).to_csv_row()
+        for detection in detections
+    ]
+    track_rows = [TrackCsvRow.from_track(track).to_csv_row() for track in tracks]
+    write_dict_csv(
+        detections_csv,
+        detection_rows,
+        fieldnames=DETECTION_CSV_FIELDS,
+    )
+    write_dict_csv(
+        tracks_csv,
+        track_rows,
+        fieldnames=TRACK_CSV_FIELDS,
+    )
 
     detections_df = pd.DataFrame(detection_rows)
     tracks_df = pd.DataFrame(track_rows)

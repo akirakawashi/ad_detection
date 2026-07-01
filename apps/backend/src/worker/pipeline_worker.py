@@ -1,23 +1,16 @@
 from __future__ import annotations
 
-# The worker is also supported as a direct script. The path bootstrap must
-# happen before importing the backend package and the repository-level ML code.
-# ruff: noqa: E402
-
 import logging
 import mimetypes
 import os
 import shutil
 import socket
-import sys
 import time
 import traceback
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
+from application.interfaces import PipelineRunRepository
+from domain.entities import artifact_type_for_path, should_register_artifact
 from infrastructure.database.session import create_session
 from infrastructure.repositories.sql_pipeline_run_repository import (
     SqlPipelineRunRepository,
@@ -26,68 +19,14 @@ from infrastructure.storage.minio_storage import MinioStorage
 from ml.pipeline.scripts.config import PipelineConfig
 from ml.pipeline.scripts.runner import (
     PipelineModels,
-    PipelineProgressReporter,
     load_pipeline_models,
     run_pipeline,
 )
 from settings.factory import get_settings
+from worker.progress import DatabaseProgressReporter
 
 
 logger = logging.getLogger("pipeline-worker")
-
-
-def artifact_type(relative_path: Path) -> str:
-    name = relative_path.name
-    if relative_path.parts[:1] == ("crops",):
-        return "crop"
-    return {
-        "input_meta.json": "input_metadata",
-        "overlay.json": "overlay",
-        "detections.csv": "detections",
-        "tracks.csv": "tracks",
-        "brand_summary_by_tracks.csv": "brand_summary",
-        "brand_summary_by_detections.csv": "detection_summary",
-        "frame_summary.csv": "frame_summary",
-        "report.html": "report",
-        "viewer.html": "viewer",
-        "annotated_video.mp4": "annotated_video",
-    }.get(name, "artifact")
-
-
-def should_register_artifact(relative_path: Path) -> bool:
-    return relative_path.parts[:1] != ("crops",)
-
-
-class DatabaseProgressReporter(PipelineProgressReporter):
-    def __init__(
-        self,
-        repository: SqlPipelineRunRepository,
-        run_id: str,
-    ) -> None:
-        self._repository = repository
-        self._run_id = run_id
-        self._last_stage: str | None = None
-        self._last_progress = -1
-
-    def update(
-        self,
-        stage: str,
-        progress: int,
-        message: str | None = None,
-    ) -> None:
-        normalized = max(0, min(99, progress))
-        create_event = (
-            stage != self._last_stage or normalized - self._last_progress >= 10
-        )
-        self._repository.update_progress(
-            self._run_id,
-            stage=stage,
-            progress=normalized,
-            message=message,
-            create_event=create_event,
-        )
-        self._last_stage = stage
-        self._last_progress = normalized
 
 
 class PipelineWorker:
@@ -111,15 +50,16 @@ class PipelineWorker:
             run = repository.claim_next(self._worker_id)
             if run is None:
                 return False
+            repository.commit()
 
             run_root = (
-                self._config.pipeline.worker_temp_dir / run.pipeline_runs_id
+                self._config.pipeline.worker_temp_dir / run.run_id
             ).resolve()
             input_path = run_root / "input" / run.source_name
             output_path = run_root / "output"
             reporter = DatabaseProgressReporter(
                 repository,
-                run.pipeline_runs_id,
+                run.run_id,
             )
 
             try:
@@ -144,7 +84,7 @@ class PipelineWorker:
                     detector_model_path=self._config.pipeline.detector_model_path,
                     classifier_model_path=(self._config.pipeline.classifier_model_path),
                     brand_overrides_path=self._config.pipeline.brand_overrides_path,
-                    run_id=run.pipeline_runs_id,
+                    run_id=run.run_id,
                     frame_stride=self._config.pipeline.frame_stride,
                     device=self._config.pipeline.device,
                 )
@@ -167,31 +107,34 @@ class PipelineWorker:
                 )
                 self._upload_artifacts(
                     repository,
-                    run.pipeline_runs_id,
+                    run.run_id,
                     output_path,
                 )
                 repository.mark_completed(
-                    run.pipeline_runs_id,
+                    run.run_id,
                     fps=result.metadata.fps,
                     frame_count=result.metadata.frame_count,
                     frame_stride=result.metadata.frame_stride,
                     width=result.metadata.width,
                     height=result.metadata.height,
                 )
+                repository.commit()
                 logger.info(
                     "run completed: %s",
-                    run.pipeline_runs_id,
+                    run.run_id,
                 )
             except Exception as exc:
                 logger.exception(
                     "run failed: %s",
-                    run.pipeline_runs_id,
+                    run.run_id,
                 )
+                repository.rollback()
                 repository.mark_failed(
-                    run.pipeline_runs_id,
+                    run.run_id,
                     error_code=exc.__class__.__name__,
                     error_message=traceback.format_exc(),
                 )
+                repository.commit()
             finally:
                 if run_root.exists():
                     shutil.rmtree(run_root)
@@ -199,7 +142,7 @@ class PipelineWorker:
 
     def _upload_artifacts(
         self,
-        repository: SqlPipelineRunRepository,
+        repository: PipelineRunRepository,
         run_id: str,
         output_dir: Path,
     ) -> None:
@@ -218,22 +161,9 @@ class PipelineWorker:
                 continue
             repository.add_artifact(
                 run_id=run_id,
-                artifact_type=artifact_type(relative),
+                artifact_type=artifact_type_for_path(relative),
                 object_key=object_key,
                 content_type=content_type,
                 size_bytes=source.stat().st_size,
             )
         repository.commit()
-
-
-def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    PipelineWorker().run_forever()
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

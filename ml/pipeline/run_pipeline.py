@@ -14,6 +14,7 @@ if __package__ in {None, ""}:
     from ml.pipeline.scripts.config import (
         BusinessConfig,
         ClassificationConfig,
+        DEFAULT_FRAME_STRIDE,
         DetectionConfig,
         PipelineConfig,
         RenderingConfig,
@@ -26,6 +27,7 @@ else:
     from .scripts.config import (
         BusinessConfig,
         ClassificationConfig,
+        DEFAULT_FRAME_STRIDE,
         DetectionConfig,
         PipelineConfig,
         RenderingConfig,
@@ -65,7 +67,7 @@ def parse_args() -> argparse.Namespace:
         default=project_root / "models/classification/best.pt",
         help="Brand classifier .pt path.",
     )
-    parser.add_argument("--frame-stride", type=int, default=10)
+    parser.add_argument("--frame-stride", type=int, default=DEFAULT_FRAME_STRIDE)
     parser.add_argument(
         "--device", default=None, help="Torch/Ultralytics device, e.g. cpu or 0."
     )

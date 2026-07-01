@@ -6,6 +6,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..artifacts import (
+    BRAND_DETECTION_SUMMARY_FIELDS,
+    BRAND_TRACK_SUMMARY_FIELDS,
+    FRAME_SUMMARY_FIELDS,
+)
 from .common import filter_business_visible
 from .csv_io import write_dict_csv
 
@@ -17,8 +22,16 @@ def write_summaries(
     visible_tracks_df = filter_business_visible(tracks_df)
 
     if visible_detections_df.empty:
-        write_dict_csv(output_dir / "brand_summary_by_detections.csv", [])
-        write_dict_csv(output_dir / "frame_summary.csv", [])
+        write_dict_csv(
+            output_dir / "brand_summary_by_detections.csv",
+            [],
+            fieldnames=BRAND_DETECTION_SUMMARY_FIELDS,
+        )
+        write_dict_csv(
+            output_dir / "frame_summary.csv",
+            [],
+            fieldnames=FRAME_SUMMARY_FIELDS,
+        )
     else:
         detection_summary = (
             visible_detections_df.groupby(["business_brand"], dropna=False)
@@ -54,7 +67,11 @@ def write_summaries(
         frame_summary.to_csv(output_dir / "frame_summary.csv", index=False)
 
     if visible_tracks_df.empty:
-        write_dict_csv(output_dir / "brand_summary_by_tracks.csv", [])
+        write_dict_csv(
+            output_dir / "brand_summary_by_tracks.csv",
+            [],
+            fieldnames=BRAND_TRACK_SUMMARY_FIELDS,
+        )
         return
 
     object_df = (

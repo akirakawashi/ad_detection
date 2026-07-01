@@ -9,7 +9,7 @@ project_root="$(
 runtime_dir="$project_root/.runtime"
 backend_env_file="$project_root/apps/backend/.env"
 worker_pid_file="$runtime_dir/worker.pid"
-worker_path="$project_root/apps/backend/src/worker.py"
+worker_path="$project_root/apps/backend/src/worker/main.py"
 python_path="$project_root/.venv/bin/python"
 
 cd "$project_root"

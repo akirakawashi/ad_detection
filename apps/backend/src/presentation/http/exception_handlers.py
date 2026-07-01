@@ -4,10 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from minio.error import S3Error
 
-from application.services.pipeline_run_service import (
-    InvalidVideoError,
-    PipelineRunNotFoundError,
-)
+from application.exceptions import InvalidVideoError, PipelineRunNotFoundError
 
 
 def setup_exception_handlers(app: FastAPI) -> None:

@@ -8,12 +8,28 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pandas.errors import EmptyDataError
 
-from infrastructure.database.models import PipelineArtifact, PipelineRun
-from infrastructure.repositories.sql_pipeline_run_repository import (
-    SqlPipelineRunRepository,
+from application.common.dto import (
+    ArtifactUrlDTO,
+    BrandSummaryDTO,
+    CreateRunDTO,
+    OverlayPayloadDTO,
+    PaginatedRunsDTO,
+    PipelineArtifactDTO,
+    PipelineRunDTO,
+    PlaybackDTO,
+    RunObjectDTO,
+    RunObjectsDTO,
+    RunSummaryDTO,
+    RunSummaryTotalsDTO,
+    RunTimelineDTO,
+    RunTimelinePointDTO,
+    UploadTargetDTO,
 )
-from infrastructure.storage.minio_storage import MinioStorage
+from application.exceptions import InvalidVideoError, PipelineRunNotFoundError
+from application.interfaces import ObjectStorage, PipelineRunRepository
+from domain.entities import PipelineArtifactType, PipelineRunStatus
 
 
 ALLOWED_VIDEO_EXTENSIONS = {
@@ -24,14 +40,6 @@ ALLOWED_VIDEO_EXTENSIONS = {
     ".mp4",
     ".webm",
 }
-
-
-class PipelineRunNotFoundError(LookupError):
-    pass
-
-
-class InvalidVideoError(ValueError):
-    pass
 
 
 def safe_file_name(value: str) -> str:
@@ -60,8 +68,8 @@ def crop_object_key(run_id: str, crop_path: str) -> str | None:
 class PipelineRunService:
     def __init__(
         self,
-        repository: SqlPipelineRunRepository,
-        storage: MinioStorage,
+        repository: PipelineRunRepository,
+        storage: ObjectStorage,
     ) -> None:
         self._repository = repository
         self._storage = storage
@@ -72,7 +80,7 @@ class PipelineRunService:
         file_name: str,
         content_type: str | None,
         size_bytes: int,
-    ) -> dict[str, Any]:
+    ) -> CreateRunDTO:
         safe_name = safe_file_name(file_name)
         if Path(safe_name).suffix.casefold() not in ALLOWED_VIDEO_EXTENSIONS:
             raise InvalidVideoError(
@@ -90,39 +98,46 @@ class PipelineRunService:
             content_type=content_type or "application/octet-stream",
             size_bytes=size_bytes,
         )
+        self._repository.commit()
 
-        return {
-            "run_id": run.pipeline_runs_id,
-            "status": run.status,
-            "upload": {
-                "method": "PUT",
-                "url": self._storage.presigned_put(run.source_object_key),
-                "headers": {
+        return CreateRunDTO(
+            run_id=run.run_id,
+            status=run.status,
+            upload=UploadTargetDTO(
+                method="PUT",
+                url=self._storage.presigned_put(run.source_object_key),
+                headers={
                     "Content-Type": run.source_content_type
                     or "application/octet-stream"
                 },
-            },
-        }
+            ),
+        )
 
-    def complete_upload(self, run_id: str) -> PipelineRun:
+    def complete_upload(self, run_id: str) -> PipelineRunDTO:
         run = self._require_run(run_id, with_artifacts=False)
-        if run.status not in {"uploading", "upload_failed"}:
+        if run.status not in {
+            PipelineRunStatus.UPLOADING,
+            PipelineRunStatus.UPLOAD_FAILED,
+        }:
             raise InvalidVideoError(
                 "Загрузка уже завершена или обработка уже началась."
             )
         object_stat = self._storage.stat(run.source_object_key)
         self._repository.add_artifact(
-            run_id=run.pipeline_runs_id,
-            artifact_type="source_video",
+            run_id=run.run_id,
+            artifact_type=PipelineArtifactType.SOURCE_VIDEO,
             object_key=run.source_object_key,
             content_type=run.source_content_type or "application/octet-stream",
             size_bytes=object_stat.size,
         )
-        self._repository.mark_upload_complete(
-            run,
+        updated_run = self._repository.mark_upload_complete(
+            run.run_id,
             actual_size_bytes=object_stat.size,
         )
-        return run
+        self._repository.commit()
+        if updated_run is None:
+            raise PipelineRunNotFoundError("Обработка не найдена.")
+        return updated_run
 
     def list_runs(
         self,
@@ -130,23 +145,23 @@ class PipelineRunService:
         page: int,
         page_size: int,
         status: str | None,
-    ) -> dict[str, Any]:
+    ) -> PaginatedRunsDTO:
         runs, total = self._repository.list_runs(
             page=page,
             page_size=page_size,
             status=status,
         )
-        return {
-            "items": runs,
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-        }
+        return PaginatedRunsDTO(
+            items=runs,
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
-    def get_run(self, run_id: str) -> PipelineRun:
+    def get_run(self, run_id: str) -> PipelineRunDTO:
         return self._require_run(run_id, with_events=True)
 
-    def get_artifacts(self, run_id: str) -> list[PipelineArtifact]:
+    def get_artifacts(self, run_id: str) -> list[PipelineArtifactDTO]:
         run = self._require_run(run_id)
         return run.artifacts
 
@@ -154,114 +169,130 @@ class PipelineRunService:
         self,
         run_id: str,
         artifact_id: str,
-    ) -> dict[str, Any]:
+    ) -> ArtifactUrlDTO:
         run = self._require_run(run_id)
         artifact = next(
             (
                 item
                 for item in run.artifacts
-                if item.pipeline_artifacts_id == artifact_id
+                if item.id == artifact_id
             ),
             None,
         )
         if artifact is None:
             raise PipelineRunNotFoundError("Файл результата не найден.")
-        return {
-            "artifact_id": artifact.pipeline_artifacts_id,
-            "url": self._storage.presigned_get(artifact.object_key),
-        }
+        return ArtifactUrlDTO(
+            artifact_id=artifact.id,
+            url=self._storage.presigned_get(artifact.object_key),
+        )
 
-    def get_playback(self, run_id: str) -> dict[str, Any]:
+    def get_playback(self, run_id: str) -> PlaybackDTO:
         run = self._require_run(run_id)
         by_type = {item.artifact_type: item for item in run.artifacts}
-        source = by_type.get("source_video")
-        annotated = by_type.get("annotated_video")
-        return {
-            "source_url": (
+        source = by_type.get(PipelineArtifactType.SOURCE_VIDEO)
+        annotated = by_type.get(PipelineArtifactType.ANNOTATED_VIDEO)
+        return PlaybackDTO(
+            source_url=(
                 self._storage.presigned_get(source.object_key) if source else None
             ),
-            "annotated_url": (
-                self._storage.presigned_get(annotated.object_key) if annotated else None
+            annotated_url=(
+                self._storage.presigned_get(annotated.object_key)
+                if annotated
+                else None
             ),
-        }
+        )
 
-    def get_overlay(self, run_id: str) -> dict[str, Any]:
-        artifact = self._require_artifact(run_id, "overlay")
-        return json.loads(self._storage.read_text(artifact.object_key))
+    def get_overlay(self, run_id: str) -> OverlayPayloadDTO:
+        artifact = self._require_artifact(run_id, PipelineArtifactType.OVERLAY)
+        payload = json.loads(self._storage.read_text(artifact.object_key))
+        return OverlayPayloadDTO.model_validate(payload)
 
-    def get_summary(self, run_id: str) -> dict[str, Any]:
+    def get_summary(self, run_id: str) -> RunSummaryDTO:
         run = self._require_run(run_id)
-        artifact = self._find_artifact(run.artifacts, "brand_summary")
-        brands: list[dict[str, Any]] = []
+        artifact = self._find_artifact(
+            run.artifacts,
+            PipelineArtifactType.BRAND_SUMMARY,
+        )
+        brands: list[BrandSummaryDTO] = []
         if artifact:
             dataframe = self._read_csv(artifact)
             if not dataframe.empty:
-                brands = self._native_rows(dataframe)
+                brands = [
+                    BrandSummaryDTO.model_validate(row)
+                    for row in self._native_rows(dataframe)
+                ]
 
-        total_objects = sum(int(row.get("object_count", 0)) for row in brands)
+        total_objects = sum(item.object_count for item in brands)
         total_visibility = sum(
-            float(row.get("video_visibility_weighted_seconds", 0.0)) for row in brands
+            item.video_visibility_weighted_seconds or 0.0 for item in brands
         )
-        return {
-            "run": run,
-            "totals": {
-                "total_objects": total_objects,
-                "visibility_index": total_visibility,
-            },
-            "brands": brands,
-        }
+        return RunSummaryDTO(
+            run=run,
+            totals=RunSummaryTotalsDTO(
+                total_objects=total_objects,
+                visibility_index=total_visibility,
+            ),
+            brands=brands,
+        )
 
     def get_objects(
         self,
         run_id: str,
         *,
         limit: int | None,
-    ) -> dict[str, Any]:
+    ) -> RunObjectsDTO:
         run = self._require_run(run_id)
-        artifact = self._find_artifact(run.artifacts, "tracks")
+        artifact = self._find_artifact(run.artifacts, PipelineArtifactType.TRACKS)
         if artifact is None:
-            return {"run_id": run_id, "objects": []}
+            return RunObjectsDTO(run_id=run_id, objects=[])
         dataframe = self._read_csv(artifact)
         if dataframe.empty:
-            return {"run_id": run_id, "objects": []}
+            return RunObjectsDTO(run_id=run_id, objects=[])
         if "business_visible" in dataframe.columns:
             visible = pd.to_numeric(
                 dataframe["business_visible"],
                 errors="coerce",
             ).fillna(0)
             dataframe = dataframe.loc[visible > 0]
+        if dataframe.empty:
+            return RunObjectsDTO(run_id=run_id, objects=[])
         dataframe = dataframe.sort_values(
             "video_visibility_weighted_seconds",
             ascending=False,
         )
-        if limit:
+        if limit is not None:
             dataframe = dataframe.head(limit)
         rows = self._native_rows(dataframe)
+        objects: list[RunObjectDTO] = []
         for row in rows:
             crop_path = str(row.get("best_crop_path") or "")
             object_key = crop_object_key(run_id, crop_path)
             row["crop_url"] = (
                 self._storage.presigned_get(object_key) if object_key else None
             )
-        return {"run_id": run_id, "objects": rows}
+            objects.append(RunObjectDTO.model_validate(row))
+        return RunObjectsDTO(run_id=run_id, objects=objects)
 
     def get_timeline(
         self,
         run_id: str,
         *,
         bucket_seconds: int,
-    ) -> dict[str, Any]:
+    ) -> RunTimelineDTO:
         run = self._require_run(run_id)
-        artifact = self._find_artifact(run.artifacts, "detections")
+        artifact = self._find_artifact(
+            run.artifacts,
+            PipelineArtifactType.DETECTIONS,
+        )
         if artifact is None:
-            return {
-                "run_id": run_id,
-                "bucket_seconds": bucket_seconds,
-                "points": [],
-            }
+            return RunTimelineDTO(
+                run_id=run_id,
+                bucket_seconds=bucket_seconds,
+                points=[],
+            )
         dataframe = self._read_csv(artifact)
         if dataframe.empty:
-            points = []
+            points: list[RunTimelinePointDTO] = []
         else:
             if "business_visible" in dataframe.columns:
                 visible = pd.to_numeric(
@@ -269,31 +300,37 @@ class PipelineRunService:
                     errors="coerce",
                 ).fillna(0)
                 dataframe = dataframe.loc[visible > 0].copy()
-            dataframe["bucket_start_sec"] = (
-                pd.to_numeric(
-                    dataframe["timestamp_sec"],
-                    errors="coerce",
-                ).fillna(0)
-                // bucket_seconds
-                * bucket_seconds
-            )
-            grouped = (
-                dataframe.groupby(
-                    ["bucket_start_sec", "business_brand"],
-                    dropna=False,
+            if dataframe.empty:
+                points = []
+            else:
+                dataframe["bucket_start_sec"] = (
+                    pd.to_numeric(
+                        dataframe["timestamp_sec"],
+                        errors="coerce",
+                    ).fillna(0)
+                    // bucket_seconds
+                    * bucket_seconds
                 )
-                .agg(
-                    detection_count=("det_index", "count"),
-                    visibility_score=("video_visibility_score", "sum"),
+                grouped = (
+                    dataframe.groupby(
+                        ["bucket_start_sec", "business_brand"],
+                        dropna=False,
+                    )
+                    .agg(
+                        detection_count=("det_index", "count"),
+                        visibility_score=("video_visibility_score", "sum"),
+                    )
+                    .reset_index()
                 )
-                .reset_index()
-            )
-            points = self._native_rows(grouped)
-        return {
-            "run_id": run_id,
-            "bucket_seconds": bucket_seconds,
-            "points": points,
-        }
+                points = [
+                    RunTimelinePointDTO.model_validate(row)
+                    for row in self._native_rows(grouped)
+                ]
+        return RunTimelineDTO(
+            run_id=run_id,
+            bucket_seconds=bucket_seconds,
+            points=points,
+        )
 
     def _require_run(
         self,
@@ -301,7 +338,7 @@ class PipelineRunService:
         *,
         with_artifacts: bool = True,
         with_events: bool = False,
-    ) -> PipelineRun:
+    ) -> PipelineRunDTO:
         run = self._repository.get(
             run_id,
             with_artifacts=with_artifacts,
@@ -314,8 +351,8 @@ class PipelineRunService:
     def _require_artifact(
         self,
         run_id: str,
-        artifact_type: str,
-    ) -> PipelineArtifact:
+        artifact_type: PipelineArtifactType,
+    ) -> PipelineArtifactDTO:
         run = self._require_run(run_id)
         artifact = self._find_artifact(run.artifacts, artifact_type)
         if artifact is None:
@@ -324,9 +361,9 @@ class PipelineRunService:
 
     @staticmethod
     def _find_artifact(
-        artifacts: list[PipelineArtifact],
-        artifact_type: str,
-    ) -> PipelineArtifact | None:
+        artifacts: list[PipelineArtifactDTO],
+        artifact_type: PipelineArtifactType,
+    ) -> PipelineArtifactDTO | None:
         return next(
             (
                 artifact
@@ -336,11 +373,14 @@ class PipelineRunService:
             None,
         )
 
-    def _read_csv(self, artifact: PipelineArtifact) -> pd.DataFrame:
+    def _read_csv(self, artifact: PipelineArtifactDTO) -> pd.DataFrame:
         value = self._storage.read_bytes(artifact.object_key)
         if not value:
             return pd.DataFrame()
-        return pd.read_csv(io.BytesIO(value))
+        try:
+            return pd.read_csv(io.BytesIO(value))
+        except EmptyDataError:
+            return pd.DataFrame()
 
     @staticmethod
     def _native_rows(dataframe: pd.DataFrame) -> list[dict[str, Any]]:

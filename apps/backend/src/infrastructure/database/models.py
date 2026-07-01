@@ -16,6 +16,8 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
+from domain.entities import PipelineRunStage, PipelineRunStatus
+
 
 def uuid_string() -> str:
     return str(uuid.uuid4())
@@ -57,19 +59,19 @@ class PipelineRun(SQLModel, table=True):
     )
 
     status: str = Field(
-        default="uploading",
+        default=PipelineRunStatus.UPLOADING.value,
         sa_column=Column(
             String(32),
-            default="uploading",
+            default=PipelineRunStatus.UPLOADING.value,
             index=True,
             nullable=False,
         ),
     )
     stage: str = Field(
-        default="upload",
+        default=PipelineRunStage.UPLOAD.value,
         sa_column=Column(
             String(64),
-            default="upload",
+            default=PipelineRunStage.UPLOAD.value,
             nullable=False,
         ),
     )

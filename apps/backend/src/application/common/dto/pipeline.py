@@ -1,51 +1,28 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from domain.entities import PipelineArtifactType, PipelineRunStage, PipelineRunStatus
 
 
-T = TypeVar("T")
-
-
-class ApiModel(BaseModel):
+class ApplicationDTO(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
     )
 
 
-class OkResponse(ApiModel, Generic[T]):
-    data: T
-
-
-class ErrorResponse(ApiModel):
-    detail: str
-
-
-class UploadTargetResponse(ApiModel):
+class UploadTargetDTO(ApplicationDTO):
     method: str
     url: str
     headers: dict[str, str]
 
 
-class CreateRunRequest(ApiModel):
-    file_name: str = Field(min_length=1, max_length=512)
-    content_type: str | None = Field(default=None, max_length=255)
-    size_bytes: int = Field(gt=0)
-
-
-class CreateRunResponse(ApiModel):
+class PipelineArtifactDTO(ApplicationDTO):
+    id: str
     run_id: str
-    status: PipelineRunStatus
-    upload: UploadTargetResponse
-
-
-class RunArtifactResponse(ApiModel):
-    id: str = Field(validation_alias=AliasChoices("id", "pipeline_artifacts_id"))
     artifact_type: PipelineArtifactType
     object_key: str
     content_type: str
@@ -53,22 +30,24 @@ class RunArtifactResponse(ApiModel):
     created_at: datetime | None
 
 
-class RunEventResponse(ApiModel):
-    id: str = Field(validation_alias=AliasChoices("id", "pipeline_run_events_id"))
+class PipelineRunEventDTO(ApplicationDTO):
+    id: str
+    run_id: str
     stage: PipelineRunStage | str
-    progress: int
+    progress: int = Field(ge=0, le=100)
     message: str | None
     created_at: datetime | None
 
 
-class PipelineRunResponse(ApiModel):
-    run_id: str = Field(validation_alias=AliasChoices("run_id", "pipeline_runs_id"))
+class PipelineRunDTO(ApplicationDTO):
+    run_id: str
     source_name: str
+    source_object_key: str
     source_content_type: str | None
     source_size_bytes: int
     status: PipelineRunStatus
     stage: PipelineRunStage | str
-    progress: int
+    progress: int = Field(ge=0, le=100)
     status_message: str | None
     error_code: str | None
     error_message: str | None
@@ -83,18 +62,34 @@ class PipelineRunResponse(ApiModel):
     started_at: datetime | None
     completed_at: datetime | None
     updated_at: datetime | None
-    artifacts: list[RunArtifactResponse] = Field(default_factory=list)
-    events: list[RunEventResponse] = Field(default_factory=list)
+    artifacts: list[PipelineArtifactDTO] = Field(default_factory=list)
+    events: list[PipelineRunEventDTO] = Field(default_factory=list)
 
 
-class PaginatedRunsResponse(ApiModel):
-    items: list[PipelineRunResponse]
+class CreateRunDTO(ApplicationDTO):
+    run_id: str
+    status: PipelineRunStatus
+    upload: UploadTargetDTO
+
+
+class PaginatedRunsDTO(ApplicationDTO):
+    items: list[PipelineRunDTO]
     page: int
     page_size: int
     total: int
 
 
-class BrandSummaryResponse(ApiModel):
+class ArtifactUrlDTO(ApplicationDTO):
+    artifact_id: str
+    url: str
+
+
+class PlaybackDTO(ApplicationDTO):
+    source_url: str | None
+    annotated_url: str | None
+
+
+class BrandSummaryDTO(ApplicationDTO):
     brand: str | None = None
     object_count: int = 0
     track_fragment_count: int | None = None
@@ -108,18 +103,18 @@ class BrandSummaryResponse(ApiModel):
     last_timestamp_sec: float | None = None
 
 
-class RunSummaryTotalsResponse(ApiModel):
+class RunSummaryTotalsDTO(ApplicationDTO):
     total_objects: int
     visibility_index: float
 
 
-class RunSummaryResponse(ApiModel):
-    run: PipelineRunResponse
-    totals: RunSummaryTotalsResponse
-    brands: list[BrandSummaryResponse]
+class RunSummaryDTO(ApplicationDTO):
+    run: PipelineRunDTO
+    totals: RunSummaryTotalsDTO
+    brands: list[BrandSummaryDTO]
 
 
-class RunObjectResponse(ApiModel):
+class RunObjectDTO(ApplicationDTO):
     run_id: str
     source_path: str
     track_id: int
@@ -157,35 +152,25 @@ class RunObjectResponse(ApiModel):
     crop_url: str | None = None
 
 
-class RunObjectsResponse(ApiModel):
+class RunObjectsDTO(ApplicationDTO):
     run_id: str
-    objects: list[RunObjectResponse]
+    objects: list[RunObjectDTO]
 
 
-class RunTimelinePointResponse(ApiModel):
+class RunTimelinePointDTO(ApplicationDTO):
     bucket_start_sec: float
     business_brand: str | None
     detection_count: int
     visibility_score: float
 
 
-class RunTimelineResponse(ApiModel):
+class RunTimelineDTO(ApplicationDTO):
     run_id: str
     bucket_seconds: int
-    points: list[RunTimelinePointResponse]
+    points: list[RunTimelinePointDTO]
 
 
-class ArtifactUrlResponse(ApiModel):
-    artifact_id: str
-    url: str
-
-
-class PlaybackResponse(ApiModel):
-    source_url: str | None
-    annotated_url: str | None
-
-
-class OverlayVideoResponse(ApiModel):
+class OverlayVideoDTO(ApplicationDTO):
     source: str
     width: int
     height: int
@@ -194,12 +179,12 @@ class OverlayVideoResponse(ApiModel):
     frame_stride: int
 
 
-class OverlayDisplayResponse(ApiModel):
+class OverlayDisplayDTO(ApplicationDTO):
     max_cards_per_frame: int
     fields: list[str]
 
 
-class OverlayObjectResponse(ApiModel):
+class OverlayObjectDTO(ApplicationDTO):
     object_id: int | None
     track_id: int | None
     brand: str
@@ -214,14 +199,14 @@ class OverlayObjectResponse(ApiModel):
     card_priority: float
 
 
-class OverlayFrameResponse(ApiModel):
+class OverlayFrameDTO(ApplicationDTO):
     frame_index: int
     timestamp_sec: float
-    objects: list[OverlayObjectResponse]
+    objects: list[OverlayObjectDTO]
 
 
-class OverlayPayloadResponse(ApiModel):
+class OverlayPayloadDTO(ApplicationDTO):
     version: int
-    video: OverlayVideoResponse
-    display: OverlayDisplayResponse
-    frames: list[OverlayFrameResponse]
+    video: OverlayVideoDTO
+    display: OverlayDisplayDTO
+    frames: list[OverlayFrameDTO]

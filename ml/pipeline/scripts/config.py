@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+DEFAULT_FRAME_STRIDE = 10
+
+
 @dataclass(frozen=True)
 class DetectionConfig:
     confidence_min: float = 0.50
@@ -80,7 +83,7 @@ class PipelineConfig:
     classifier_model_path: Path
     brand_overrides_path: Path | None
     run_id: str
-    frame_stride: int = 10
+    frame_stride: int = DEFAULT_FRAME_STRIDE
     device: str | None = None
     detection: DetectionConfig = field(default_factory=DetectionConfig)
     crop_quality: CropQualityConfig = field(default_factory=CropQualityConfig)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -98,12 +98,9 @@ class DetectionRecord:
         return (self.bbox_x1, self.bbox_y1, self.bbox_x2, self.bbox_y2)
 
     def to_row(self) -> dict[str, Any]:
-        row = asdict(self)
-        row["track_id"] = "" if self.track_id is None else self.track_id
-        row["object_id"] = "" if self.object_id is None else self.object_id
-        row["classification_attempted"] = int(self.classification_attempted)
-        row["business_visible"] = int(self.business_visible)
-        return row
+        from .artifacts import DetectionCsvRow
+
+        return DetectionCsvRow.from_detection(self).to_csv_row()
 
 
 @dataclass
@@ -144,11 +141,9 @@ class TrackRecord:
     manual_review_required: bool
 
     def to_row(self) -> dict[str, Any]:
-        row = asdict(self)
-        row["manual_review_required"] = int(self.manual_review_required)
-        row["track_confirmed"] = int(self.track_confirmed)
-        row["business_visible"] = int(self.business_visible)
-        return row
+        from .artifacts import TrackCsvRow
+
+        return TrackCsvRow.from_track(self).to_csv_row()
 
 
 DetectionMap = dict[int, list[DetectionRecord]]
