@@ -18,7 +18,7 @@ export function navigate(path: string) {
 }
 
 export function workspaceTitle(route: Route) {
-  if (route.page === 'home') return 'AI Ad Pipeline Apps'
+  if (route.page === 'home') return 'Анализ заметности рекламы'
   if (route.page === 'new') return 'Загрузка видео'
   if (route.page === 'run') return 'Результат'
   return 'Архив'

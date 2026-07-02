@@ -9,8 +9,8 @@ export function LandingPage() {
           <div className="landing-logo-card">
             <img src={logoUrl} alt="АИСИ ГРУПП" />
           </div>
-          <p className="landing-eyebrow">AI video audit</p>
-          <h1 id="landing-title">AI Ad Pipeline</h1>
+          <p className="landing-eyebrow">Видеоаналитика для бизнеса</p>
+          <h1 id="landing-title">Анализ заметности рекламы</h1>
           <p className="landing-lead">
             Веб-система для анализа рекламы в видео маршрута: загружает ролик,
             находит рекламные объекты, определяет бренды и показывает
