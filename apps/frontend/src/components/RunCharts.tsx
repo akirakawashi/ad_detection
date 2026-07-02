@@ -108,22 +108,17 @@ export function RunCharts({
     [brands, hiddenBrands, totalBrandVisibility],
   )
 
+  const visibilityPercentAxisMax = useMemo(
+    () => getPercentAxisMax(brandRows.map((brand) => brand.visibility_percent)),
+    [brandRows],
+  )
+
   const visibilityTimelineRows = useMemo(
     () =>
       buildTimelineRows(
         timeline,
         hiddenBrands,
         (point) => point.visibility_score,
-      ),
-    [hiddenBrands, timeline],
-  )
-
-  const detectionTimelineRows = useMemo(
-    () =>
-      buildTimelineRows(
-        timeline,
-        hiddenBrands,
-        (point) => point.detection_count,
       ),
     [hiddenBrands, timeline],
   )
@@ -235,7 +230,7 @@ export function RunCharts({
               <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
               <XAxis dataKey="brand_label" stroke="#8d9298" />
               <YAxis
-                domain={[0, 100]}
+                domain={[0, visibilityPercentAxisMax]}
                 stroke="#8d9298"
                 tickFormatter={(value) => formatPercent(Number(value))}
               />
@@ -310,7 +305,7 @@ export function RunCharts({
               />
               <YAxis
                 yAxisId="visibility"
-                domain={[0, 100]}
+                domain={[0, visibilityPercentAxisMax]}
                 orientation="right"
                 stroke="#05c3a1"
                 tickFormatter={(value) => formatPercent(Number(value))}
@@ -465,45 +460,6 @@ export function RunCharts({
           </ResponsiveContainer>
         </section>
 
-        <section className="panel chart-card wide-chart">
-          <header>
-            <h3>Найденные объекты по времени</h3>
-            <p>Сколько объектов появлялось в каждом отрезке видео</p>
-          </header>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart
-              data={detectionTimelineRows}
-              onClick={(state) => {
-                const seconds = activeLabelNumber(state)
-                if (seconds !== null) onSeek(seconds)
-              }}
-            >
-              <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
-              <XAxis
-                dataKey="time"
-                stroke="#8d9298"
-                tickFormatter={(value) => `${value}s`}
-              />
-              <YAxis allowDecimals={false} stroke="#8d9298" />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                cursor={tooltipCursor}
-                itemStyle={tooltipItemStyle}
-                labelFormatter={(value) => `${value} сек.`}
-                labelStyle={tooltipLabelStyle}
-              />
-              {visibleBrandKeys.map((brand) => (
-                <Bar
-                  key={brand}
-                  dataKey={brand}
-                  stackId="detections"
-                  fill={getBrandColor(brand)}
-                />
-              ))}
-              <Brush dataKey="time" height={24} stroke="#05c3a1" />
-            </BarChart>
-          </ResponsiveContainer>
-        </section>
       </div>
     </>
   )
@@ -613,6 +569,21 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function getPercentAxisMax(values: number[]): number {
+  const max = values.reduce(
+    (currentMax, value) =>
+      Number.isFinite(value) ? Math.max(currentMax, value) : currentMax,
+    0,
+  )
+  const paddedMax = max * 1.15
+  if (paddedMax <= 5) return 5
+  if (paddedMax <= 10) return 10
+  if (paddedMax <= 25) return 25
+  if (paddedMax <= 50) return 50
+  if (paddedMax <= 75) return 75
+  return 100
 }
 
 function getBrandColor(brand: string): string {
